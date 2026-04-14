@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "Tikb'al",
+    "slug": "gestion-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#000000"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/27750b08-cd47-4cca-9c0f-a7b09d4459d7",
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.tikbal.gestion"
+    },
+    "android": {
+      "package": "com.tikbal.gestion",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#000000"
+      }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "27750b08-cd47-4cca-9c0f-a7b09d4459d7"
+      }
+    },
+    "owner": "vinival"
+  }
+}
