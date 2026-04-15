@@ -226,10 +226,11 @@ const CrearPedido: React.FC<Props> = ({ navigation, route }) => {
         Alert.alert('Cantidad inválida', 'La cantidad debe ser mayor a 0');
         return false;
       }
-      // Validar que el precio relevante no sea 0
-      const precio = tipoPedido === 'venta' ? parsearNumero(item.precioVenta) : parsearNumero(item.precioCompra);
-      if (precio <= 0) {
-        Alert.alert('Precio requerido', `El precio de "${item.nombre || 'ítem'}" debe ser mayor a 0`);
+      // Validar que ambos precios sean mayores a 0
+      const precioC = parsearNumero(item.precioCompra);
+      const precioV = parsearNumero(item.precioVenta);
+      if (precioC <= 0 || precioV <= 0) {
+        Alert.alert('Precios requeridos', `Ingresá precio costo y precio venta en "${item.nombre || 'ítem'}"`);
         return false;
       }
     }
@@ -375,14 +376,21 @@ const CrearPedido: React.FC<Props> = ({ navigation, route }) => {
                   contenedor={{ flex: 1, marginRight: ESPACIADO.sm }}
                 />
                 <CampoTexto
-                  etiqueta="Precio"
+                  etiqueta="Precio costo"
                   placeholder="0.00"
-                  value={tipoPedido === 'venta' ? item.precioVenta : item.precioCompra}
-                  onChangeText={(v) => actualizarItem(item.id, tipoPedido === 'venta' ? 'precioVenta' : 'precioCompra', v)}
+                  value={item.precioCompra}
+                  onChangeText={(v) => actualizarItem(item.id, 'precioCompra', v)}
                   keyboardType="decimal-pad"
                   contenedor={{ flex: 1, marginLeft: ESPACIADO.sm }}
                 />
               </View>
+              <CampoTexto
+                etiqueta="Precio venta"
+                placeholder="0.00"
+                value={item.precioVenta}
+                onChangeText={(v) => actualizarItem(item.id, 'precioVenta', v)}
+                keyboardType="decimal-pad"
+              />
             </View>
           ))}
 

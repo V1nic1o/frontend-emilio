@@ -107,7 +107,7 @@ export const estilos = StyleSheet.create({
     paddingHorizontal: ESPACIADO.sm,
   },
   eliminarTexto: { fontSize: FUENTE.tamanoPequeno, color: COLORES.peligro },
-  filaInputs: { flexDirection: 'row' },
+  filaInputs: { flexDirection: 'row', marginBottom: 0 },
   botonAgregarItem: {
     flexDirection: 'row',
     alignItems: 'center',
