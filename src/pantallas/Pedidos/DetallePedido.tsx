@@ -108,9 +108,9 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
   const esVenta = pedido.tipo === 'venta';
   const esCliente = pedido.persona?.tipo === 'cliente';
   const resumen = pedido.resumen;
-  const total = esCliente ? (resumen?.totalVenta ?? 0) : (resumen?.totalCompra ?? 0);
+  const total = esVenta ? (resumen?.totalVenta ?? 0) : (resumen?.totalCompra ?? 0);
   const totalPagado = resumen?.totalPagado ?? 0;
-  const saldo = Math.max(0, total - totalPagado);
+  const saldo = resumen?.saldoPendiente ?? Math.max(0, total - totalPagado);
   const estaPagado = resumen?.estado === 'pagado';
   const porcentajePagado = total > 0 ? Math.min(100, Math.round((totalPagado / total) * 100)) : 0;
 
@@ -180,7 +180,7 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
             </View>
           ) : (
             (pedido.items ?? []).map((item, idx) => {
-              const precio = esCliente ? item.precioVenta : item.precioCompra;
+              const precio = esVenta ? item.precioVenta : item.precioCompra;
               const subtotal = item.cantidad * precio;
               const esUltimo = idx === (pedido.items?.length ?? 0) - 1;
               return (
