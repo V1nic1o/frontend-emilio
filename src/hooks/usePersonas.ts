@@ -1,37 +1,66 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Persona, CrearPersonaDto } from '../tipos';
-import { personasServicio } from '../servicios/personas.servicio';
+import { personasServicio, ActualizarPersonaDto } from '../servicios/personas.servicio';
+import { useWallet } from '../contexto/WalletContext';
 
 export const usePersonas = () => {
+  const { walletSeleccionado } = useWallet();
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Evita carreras: varias cargas en paralelo dejaban `error` de un intento viejo con lista vacía. */
+  const colaCargaRef = useRef<Promise<void>>(Promise.resolve());
 
   const cargar = useCallback(async () => {
-    setCargando(true);
-    setError(null);
-    try {
-      const data = await personasServicio.listar();
-      setPersonas(data);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Error al cargar personas');
-    } finally {
-      setCargando(false);
-    }
-  }, []);
+    if (!walletSeleccionado) return;
+    const walletId = walletSeleccionado.id;
+    const tarea = async () => {
+      setCargando(true);
+      setError(null);
+      try {
+        const data = await personasServicio.listar(walletId);
+        setPersonas(data);
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Error al cargar personas');
+      } finally {
+        setCargando(false);
+      }
+    };
+    const encadenada = colaCargaRef.current.then(tarea);
+    colaCargaRef.current = encadenada.catch(() => {});
+    await encadenada;
+  }, [walletSeleccionado]);
 
-  const crear = useCallback(async (dto: CrearPersonaDto): Promise<Persona | null> => {
+  const crear = useCallback(async (dto: Omit<CrearPersonaDto, 'walletId'>): Promise<Persona | null> => {
+    if (!walletSeleccionado) throw new Error('No hay wallet seleccionado');
     try {
-      const nueva = await personasServicio.crear(dto);
+      const nueva = await personasServicio.crear({ ...dto, walletId: walletSeleccionado.id });
       setPersonas((prev) => [nueva, ...prev]);
       return nueva;
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Error al crear persona';
-      throw new Error(msg);
+      throw new Error(e instanceof Error ? e.message : 'Error al crear persona');
+    }
+  }, [walletSeleccionado]);
+
+  const actualizar = useCallback(async (id: number, dto: ActualizarPersonaDto): Promise<void> => {
+    try {
+      const actualizada = await personasServicio.actualizar(id, dto);
+      setPersonas((prev) => prev.map((p) => (p.id === id ? actualizada : p)));
+    } catch (e: unknown) {
+      throw new Error(e instanceof Error ? e.message : 'Error al actualizar persona');
     }
   }, []);
 
-  return { personas, cargando, error, cargar, crear };
+  const eliminar = useCallback(async (id: number): Promise<void> => {
+    try {
+      await personasServicio.eliminar(id);
+      setPersonas((prev) => prev.filter((p) => p.id !== id));
+    } catch (e: unknown) {
+      throw new Error(e instanceof Error ? e.message : 'Error al eliminar persona');
+    }
+  }, []);
+
+  return { personas, cargando, error, cargar, crear, actualizar, eliminar };
 };
 
 export const usePersonaDetalle = (id: number) => {

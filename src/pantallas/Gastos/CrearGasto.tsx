@@ -17,7 +17,9 @@ import { useGastos } from '../../hooks/useGastos';
 import CampoTexto from '../../componentes/CampoTexto';
 import BotonPrimario from '../../componentes/BotonPrimario';
 import { COLORES } from '../../estilos/colores';
-import { FUENTE, ESPACIADO, RADIO, estilosComunes } from '../../estilos/tema';
+import { PERSONAL } from '../../estilos/personalTema';
+import { FUENTE, ESPACIADO, RADIO, estilosComunes, SCROLL_FORM_PADDING_BOTTOM } from '../../estilos/tema';
+import { useWallet } from '../../contexto/WalletContext';
 import { parsearNumero } from '../../utilidades/formato';
 
 type Props = NativeStackScreenProps<GastosStackParamList, 'CrearGasto'>;
@@ -41,6 +43,8 @@ const CATEGORIAS: CategoriaConfig[] = [
 ];
 
 const CrearGasto: React.FC<Props> = ({ navigation }) => {
+  const { walletSeleccionado } = useWallet();
+  const fondoPantalla = walletSeleccionado?.tipo === 'personal' ? PERSONAL.fondo : undefined;
   const { crear } = useGastos();
   const [descripcion, setDescripcion] = useState('');
   const [monto, setMonto] = useState('');
@@ -77,10 +81,10 @@ const CrearGasto: React.FC<Props> = ({ navigation }) => {
   const catActiva = CATEGORIAS.find((c) => c.nombre === categoria);
 
   return (
-    <SafeAreaView style={estilosComunes.contenedor} edges={['bottom']}>
+    <SafeAreaView style={[estilosComunes.contenedor, fondoPantalla != null && { backgroundColor: fondoPantalla }]} edges={['bottom']}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView
-          contentContainerStyle={estilos.scroll}
+          contentContainerStyle={[estilos.scroll, { paddingBottom: SCROLL_FORM_PADDING_BOTTOM }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >

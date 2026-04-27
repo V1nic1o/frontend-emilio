@@ -1,15 +1,15 @@
 export const formatearMoneda = (valor: number): string => {
-  return new Intl.NumberFormat('es-AR', {
-    style: 'currency',
-    currency: 'ARS',
+  const num = new Intl.NumberFormat('es-GT', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(valor);
+  return `Q ${num}`;
 };
 
 export const formatearFecha = (fecha: string): string => {
   const d = new Date(fecha);
-  return d.toLocaleDateString('es-AR', {
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('es-GT', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -18,7 +18,8 @@ export const formatearFecha = (fecha: string): string => {
 
 export const formatearFechaHora = (fecha: string): string => {
   const d = new Date(fecha);
-  return d.toLocaleDateString('es-AR', {
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('es-GT', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -36,6 +37,7 @@ export const obtenerMesActual = (): { inicio: Date; fin: Date } => {
 
 export const esMesActual = (fecha: string): boolean => {
   const d = new Date(fecha);
+  if (Number.isNaN(d.getTime())) return false;
   const hoy = new Date();
   return d.getMonth() === hoy.getMonth() && d.getFullYear() === hoy.getFullYear();
 };
@@ -58,6 +60,27 @@ export const etiquetaTipoPersona = (tipo: string): string =>
 
 export const etiquetaTipoPedido = (tipo: string): string =>
   tipo === 'venta' ? 'Venta' : 'Compra';
+
+/** Título visible: referencia personalizada o "Venta/Compra #id". */
+export const etiquetaPedido = (p: {
+  id: number;
+  tipo: string;
+  nombreReferencia?: string | null;
+}): string => {
+  const ref = p.nombreReferencia?.trim();
+  if (ref) return ref;
+  return `${etiquetaTipoPedido(p.tipo)} #${p.id}`;
+};
+
+/** Línea secundaria con #id cuando hay nombre personalizado. */
+export const subtituloNumeroPedido = (p: {
+  id: number;
+  tipo: string;
+  nombreReferencia?: string | null;
+}): string | null => {
+  if (!p.nombreReferencia?.trim()) return null;
+  return `${etiquetaTipoPedido(p.tipo)} · #${p.id}`;
+};
 
 export const etiquetaEstado = (estado: string): string => {
   switch (estado) {

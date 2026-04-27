@@ -1,0 +1,10 @@
+{
+  "buildCommand": "npm run export:web",
+  "outputDirectory": "dist-web",
+  "rewrites": [
+    {
+      "source": "/((?!_expo).*)",
+      "destination": "/index.html"
+    }
+  ]
+}

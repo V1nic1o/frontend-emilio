@@ -35,7 +35,7 @@ export const estilos = StyleSheet.create({
     paddingVertical: 3,
   },
   heroBadgeTexto: { fontSize: FUENTE.tamanoXs, fontWeight: FUENTE.pesoBold, color: COLORES.blanco },
-  heroEstadoBox: { marginLeft: ESPACIADO.sm },
+  heroEstadoBox: { marginLeft: ESPACIADO.sm, flexShrink: 0 },
 
   heroMontoFila: {
     flexDirection: 'row',
@@ -117,8 +117,13 @@ export const estilos = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  itemInfo: { flex: 1 },
-  itemNombre: { fontSize: FUENTE.tamanoBase, color: COLORES.texto, fontWeight: FUENTE.pesoMedio },
+  itemInfo: { flex: 1, minWidth: 0 },
+  itemNombre: {
+    fontSize: FUENTE.tamanoBase,
+    color: COLORES.texto,
+    fontWeight: FUENTE.pesoMedio,
+    flexShrink: 1,
+  },
   itemMeta: { fontSize: FUENTE.tamanoPequeno, color: COLORES.textoSecundario, marginTop: 2 },
   itemSubtotal: { fontSize: FUENTE.tamanoBase, fontWeight: FUENTE.pesoBold, color: COLORES.texto },
   totalFila: {
@@ -151,7 +156,7 @@ export const estilos = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  pagoFecha: { flex: 1, fontSize: FUENTE.tamanoBase, color: COLORES.textoSecundario },
+  pagoFecha: { flex: 1, minWidth: 0, fontSize: FUENTE.tamanoBase, color: COLORES.textoSecundario },
   pagoMonto: { fontSize: FUENTE.tamanoBase, fontWeight: FUENTE.pesoBold, color: COLORES.exito },
 
   botonEliminar: {
@@ -167,6 +172,8 @@ export const estilos = StyleSheet.create({
 
   footer: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'stretch',
     padding: ESPACIADO.md,
     backgroundColor: COLORES.fondo,
     borderTopWidth: 1,
@@ -175,6 +182,8 @@ export const estilos = StyleSheet.create({
   },
   botonPagarHero: {
     flex: 1,
+    flexGrow: 1,
+    minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -183,9 +192,17 @@ export const estilos = StyleSheet.create({
     borderRadius: RADIO.lg,
     paddingVertical: ESPACIADO.md,
   },
-  botonPagarHeroTexto: { color: COLORES.blanco, fontSize: FUENTE.tamanoBase, fontWeight: FUENTE.pesoBold },
+  botonPagarHeroTexto: {
+    flexShrink: 1,
+    textAlign: 'center',
+    color: COLORES.blanco,
+    fontSize: FUENTE.tamanoBase,
+    fontWeight: FUENTE.pesoBold,
+  },
   pagadoBox: {
     flex: 1,
+    flexGrow: 1,
+    minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -194,7 +211,13 @@ export const estilos = StyleSheet.create({
     borderRadius: RADIO.lg,
     paddingVertical: ESPACIADO.md,
   },
-  pagadoTexto: { color: COLORES.exito, fontSize: FUENTE.tamanoPequeno, fontWeight: FUENTE.pesoSemibold },
+  pagadoTexto: {
+    flexShrink: 1,
+    textAlign: 'center',
+    color: COLORES.exito,
+    fontSize: FUENTE.tamanoPequeno,
+    fontWeight: FUENTE.pesoSemibold,
+  },
   botonPDF: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -202,7 +225,9 @@ export const estilos = StyleSheet.create({
     backgroundColor: COLORES.primarioClaro,
     borderRadius: RADIO.lg,
     paddingHorizontal: ESPACIADO.md,
-    minWidth: 78,
+    paddingVertical: ESPACIADO.md,
+    minWidth: 0,
+    flexShrink: 0,
     justifyContent: 'center',
   },
   botonPDFTexto: { fontSize: FUENTE.tamanoPequeno, color: COLORES.primario, fontWeight: FUENTE.pesoBold },

@@ -26,6 +26,7 @@
     },
     "android": {
       "package": "com.tikbal.gestion",
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#000000"
@@ -36,6 +37,10 @@
         "projectId": "27750b08-cd47-4cca-9c0f-a7b09d4459d7"
       }
     },
-    "owner": "vinival"
+    "owner": "vinival",
+    "plugins": [
+      "expo-secure-store",
+      "expo-font"
+    ]
   }
 }

@@ -18,7 +18,9 @@ import CargandoSpinner from '../../componentes/CargandoSpinner';
 import ErrorMensaje from '../../componentes/ErrorMensaje';
 import FAB from '../../componentes/FAB';
 import { COLORES } from '../../estilos/colores';
+import { PERSONAL } from '../../estilos/personalTema';
 import { FUENTE, ESPACIADO, RADIO, estilosComunes } from '../../estilos/tema';
+import { useWallet } from '../../contexto/WalletContext';
 import { formatearMoneda, formatearFecha, esMesActual } from '../../utilidades/formato';
 
 type Props = NativeStackScreenProps<GastosStackParamList, 'ListaGastos'>;
@@ -45,6 +47,8 @@ const MES_NOMBRES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'jul
 interface Seccion { title: string; total: number; data: Gasto[] }
 
 const ListaGastos: React.FC<Props> = ({ navigation }) => {
+  const { walletSeleccionado } = useWallet();
+  const fondoLista = walletSeleccionado?.tipo === 'personal' ? PERSONAL.fondo : COLORES.fondo;
   const { gastos, cargando, error, cargar, eliminar } = useGastos();
 
   useEffect(() => {
@@ -122,18 +126,29 @@ const ListaGastos: React.FC<Props> = ({ navigation }) => {
           </View>
           <View style={estilos.itemDer}>
             <Text style={estilos.itemMonto}>{formatearMoneda(item.monto)}</Text>
-            <TouchableOpacity
-              onPress={() => handleEliminar(item)}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              style={estilos.eliminarBtn}
-            >
-              <Ionicons name="trash-outline" size={14} color={COLORES.textoDeshabilitado} />
-            </TouchableOpacity>
+            <View style={estilos.itemAcciones}>
+              <TouchableOpacity
+                onPress={() => navigation.navigate('EditarGasto', { gastoId: item.id })}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                style={estilos.accionBtn}
+                accessibilityLabel="Editar gasto"
+              >
+                <Ionicons name="create-outline" size={14} color={COLORES.primario} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => handleEliminar(item)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                style={estilos.accionBtn}
+                accessibilityLabel="Eliminar gasto"
+              >
+                <Ionicons name="trash-outline" size={14} color={COLORES.textoDeshabilitado} />
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       );
     },
-    [handleEliminar]
+    [handleEliminar, navigation]
   );
 
   const renderSectionHeader = useCallback(
@@ -150,7 +165,7 @@ const ListaGastos: React.FC<Props> = ({ navigation }) => {
   if (error && gastos.length === 0) return <ErrorMensaje mensaje={error} onReintentar={cargar} />;
 
   return (
-    <SafeAreaView style={estilosComunes.contenedor} edges={['bottom']}>
+    <SafeAreaView style={[estilosComunes.contenedor, { backgroundColor: fondoLista }]} edges={['bottom']}>
       {/* Banner mes actual */}
       {gastos.length > 0 && (
         <View style={estilos.banner}>
@@ -277,7 +292,8 @@ const estilos = StyleSheet.create({
   catPillTexto: { fontSize: FUENTE.tamanoXs, fontWeight: FUENTE.pesoBold },
   itemDer: { alignItems: 'flex-end', gap: ESPACIADO.xs, marginLeft: ESPACIADO.sm },
   itemMonto: { fontSize: FUENTE.tamanoBase, fontWeight: FUENTE.pesoBold, color: COLORES.texto },
-  eliminarBtn: {
+  itemAcciones: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  accionBtn: {
     width: 28,
     height: 28,
     borderRadius: 14,

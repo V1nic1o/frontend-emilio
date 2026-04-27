@@ -1,4 +1,5 @@
-import React, { useEffect, useCallback, useState, useMemo } from 'react';
+import React, { useCallback, useState, useMemo } from 'react';
+import { useFocusEffect, StackActions } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -16,11 +17,10 @@ import { usePedidos } from '../../hooks/usePedidos';
 import { Pedido } from '../../tipos';
 import CargandoSpinner from '../../componentes/CargandoSpinner';
 import ErrorMensaje from '../../componentes/ErrorMensaje';
-import EstadoBadge from '../../componentes/EstadoBadge';
 import FAB from '../../componentes/FAB';
 import { COLORES } from '../../estilos/colores';
 import { FUENTE, ESPACIADO, RADIO, estilosComunes } from '../../estilos/tema';
-import { formatearMoneda, formatearFecha } from '../../utilidades/formato';
+import { formatearMoneda, formatearFecha, etiquetaPedido, subtituloNumeroPedido } from '../../utilidades/formato';
 
 type Props = NativeStackScreenProps<PedidosStackParamList, 'ListaPedidos'>;
 type Filtro = 'todos' | 'ventas' | 'compras' | 'pendientes';
@@ -32,14 +32,29 @@ const FILTROS: { id: Filtro; etiqueta: string; icono: React.ComponentProps<typeo
   { id: 'pendientes', etiqueta: 'Sin pagar', icono: 'time-outline' },
 ];
 
+const ESTADO_CONFIG = {
+  pagado: { label: 'Pagado', color: COLORES.exito, fondo: COLORES.exitoClaro, icono: 'checkmark-circle' as const },
+  parcial: { label: 'Parcial', color: '#D97706', fondo: '#FEF3C7', icono: 'ellipse-outline' as const },
+  pendiente: { label: 'Pendiente', color: COLORES.peligro, fondo: '#FFF1F0', icono: 'time-outline' as const },
+};
+
 const ListaPedidos: React.FC<Props> = ({ navigation }) => {
   const { pedidos, cargando, error, cargar } = usePedidos();
   const [filtroActivo, setFiltroActivo] = useState<Filtro>('todos');
 
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', cargar);
-    return unsubscribe;
-  }, [navigation, cargar]);
+  useFocusEffect(
+    useCallback(() => {
+      cargar();
+      // Solo si hay rutas encima de la lista (p. ej. [Lista, Detalle, Lista]), volver a la raíz.
+      // Con un solo [ListaPedidos], popToTop no está soportado y React Navigation lanza error.
+      const st = navigation.getState();
+      const idx = st?.index ?? 0;
+      const nombre = st?.routes?.[idx]?.name;
+      if (idx > 0 && nombre === 'ListaPedidos') {
+        navigation.dispatch(StackActions.popToTop());
+      }
+    }, [cargar, navigation]),
+  );
 
   const pedidosFiltrados = useMemo(() => {
     switch (filtroActivo) {
@@ -59,43 +74,98 @@ const ListaPedidos: React.FC<Props> = ({ navigation }) => {
     pendientes: pedidos.filter((p) => p.resumen?.estado === 'pendiente' || p.resumen?.estado === 'parcial').length,
   }), [pedidos]);
 
+  // Totales globales para las estadísticas
+  const totales = useMemo(() => {
+    const totalVentas = pedidos
+      .filter((p) => p.tipo === 'venta')
+      .reduce((acc, p) => acc + (p.resumen?.totalVenta ?? 0), 0);
+    const totalPendiente = pedidos.reduce((acc, p) => {
+      const total = p.tipo === 'venta' ? (p.resumen?.totalVenta ?? 0) : (p.resumen?.totalCompra ?? 0);
+      return acc + Math.max(0, total - (p.resumen?.totalPagado ?? 0));
+    }, 0);
+    return { totalVentas, totalPendiente };
+  }, [pedidos]);
+
   const renderPedido = useCallback(
     ({ item }: { item: Pedido }) => {
       const esVenta = item.tipo === 'venta';
       const total = esVenta ? (item.resumen?.totalVenta ?? 0) : (item.resumen?.totalCompra ?? 0);
-      const saldo = Math.max(0, total - (item.resumen?.totalPagado ?? 0));
+      const pagado = item.resumen?.totalPagado ?? 0;
+      const saldo = Math.max(0, total - pagado);
+      const porcentaje = total > 0 ? Math.min(100, Math.round((pagado / total) * 100)) : 0;
+      const estadoKey = (item.resumen?.estado ?? 'pendiente') as keyof typeof ESTADO_CONFIG;
+      const estadoCfg = ESTADO_CONFIG[estadoKey] ?? ESTADO_CONFIG.pendiente;
+
+      const colorTipo = esVenta ? COLORES.primario : COLORES.morado;
+      const fondoTipo = esVenta ? COLORES.primarioClaro : COLORES.moradoClaro;
+      const subNum = subtituloNumeroPedido(item);
+
       return (
         <TouchableOpacity
-          style={estilos.item}
+          style={estilos.card}
           onPress={() => navigation.navigate('DetallePedido', { pedidoId: item.id })}
           activeOpacity={0.85}
         >
-          <View style={[estilos.tipoIconBox, { backgroundColor: esVenta ? COLORES.primarioClaro : COLORES.moradoClaro }]}>
-            <Ionicons
-              name={esVenta ? 'arrow-up-circle-outline' : 'arrow-down-circle-outline'}
-              size={22}
-              color={esVenta ? COLORES.primario : COLORES.morado}
-            />
-          </View>
-          <View style={estilos.itemInfo}>
-            <Text style={estilos.persona} numberOfLines={1}>{item.persona?.nombre ?? '—'}</Text>
-            <View style={estilos.metaFila}>
-              <View style={[estilos.tipoBadge, { backgroundColor: esVenta ? COLORES.primarioClaro : COLORES.moradoClaro }]}>
-                <Text style={[estilos.tipoBadgeTexto, { color: esVenta ? COLORES.primario : COLORES.morado }]}>
-                  {esVenta ? 'Venta' : 'Compra'}
-                </Text>
+          {/* Cabecera de la card */}
+          <View style={estilos.cardHeader}>
+            <View style={estilos.cardHeaderLeft}>
+              <View style={[estilos.tipoIconBox, { backgroundColor: fondoTipo }]}>
+                <Ionicons
+                  name={esVenta ? 'arrow-up-circle-outline' : 'arrow-down-circle-outline'}
+                  size={18}
+                  color={colorTipo}
+                />
               </View>
-              <Text style={estilos.metaSep}>·</Text>
-              <Text style={estilos.fecha}>{formatearFecha(item.fecha)}</Text>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={[estilos.tipoTexto, { color: colorTipo }]} numberOfLines={2}>
+                  {etiquetaPedido(item)}
+                </Text>
+                {subNum ? (
+                  <Text style={estilos.pedidoSubId} numberOfLines={1}>{subNum}</Text>
+                ) : null}
+                <Text style={estilos.fecha}>{formatearFecha(item.fecha)}</Text>
+              </View>
+            </View>
+
+            <View style={[estilos.estadoBadge, { backgroundColor: estadoCfg.fondo }]}>
+              <Ionicons name={estadoCfg.icono} size={11} color={estadoCfg.color} />
+              <Text style={[estilos.estadoTexto, { color: estadoCfg.color }]} numberOfLines={1}>
+                {estadoCfg.label}
+              </Text>
             </View>
           </View>
-          <View style={estilos.itemRight}>
-            {item.resumen && <EstadoBadge estado={item.resumen.estado} />}
-            <Text style={[estilos.total, saldo > 0 && estilos.totalPendiente]}>
-              {saldo > 0 ? `−${formatearMoneda(saldo)}` : formatearMoneda(total)}
-            </Text>
+
+          {/* Nombre persona */}
+          <Text style={estilos.personaNombre} numberOfLines={1}>
+            {item.persona?.nombre ??
+              (item.tipo === 'venta' && item.proveedor?.nombre ? item.proveedor.nombre : '—')}
+          </Text>
+
+          {/* Barra de progreso + totales */}
+          <View style={estilos.cardFooter}>
+            <View style={estilos.progressWrapper}>
+              <View style={estilos.progressBg}>
+                <View
+                  style={[
+                    estilos.progressBar,
+                    {
+                      width: `${porcentaje}%` as `${number}%`,
+                      backgroundColor: estadoCfg.color,
+                    },
+                  ]}
+                />
+              </View>
+              <Text style={estilos.progressPct}>{porcentaje}%</Text>
+            </View>
+            <View style={estilos.totalArea}>
+              <Text style={estilos.totalLabel}>
+                {saldo > 0 ? 'Saldo' : 'Total'}
+              </Text>
+              <Text style={[estilos.totalMonto, saldo > 0 && { color: COLORES.peligro }]}>
+                {formatearMoneda(saldo > 0 ? saldo : total)}
+              </Text>
+            </View>
           </View>
-          <Ionicons name="chevron-forward" size={16} color={COLORES.textoDeshabilitado} style={{ marginLeft: 4 }} />
         </TouchableOpacity>
       );
     },
@@ -125,7 +195,7 @@ const ListaPedidos: React.FC<Props> = ({ navigation }) => {
               >
                 <Ionicons
                   name={f.icono}
-                  size={14}
+                  size={13}
                   color={activo ? COLORES.blanco : COLORES.textoSecundario}
                 />
                 <Text style={[estilos.filtroTexto, activo && estilos.filtroTextoActivo]}>
@@ -150,23 +220,44 @@ const ListaPedidos: React.FC<Props> = ({ navigation }) => {
         renderItem={renderPedido}
         contentContainerStyle={[estilos.lista, pedidosFiltrados.length === 0 && estilos.listaVacia]}
         refreshControl={<RefreshControl refreshing={cargando} onRefresh={cargar} tintColor={COLORES.primario} />}
+        showsVerticalScrollIndicator={false}
         ItemSeparatorComponent={() => <View style={{ height: ESPACIADO.sm }} />}
+        ListHeaderComponent={
+          pedidos.length > 0 && filtroActivo === 'todos' ? (
+            <View style={estilos.statsRow}>
+              <View style={estilos.statCard}>
+                <Ionicons name="cube-outline" size={18} color={COLORES.primario} />
+                <Text style={estilos.statNum}>{pedidos.length}</Text>
+                <Text style={estilos.statLabel}>Pedidos</Text>
+              </View>
+              <View style={estilos.statCard}>
+                <Ionicons name="arrow-up-circle-outline" size={18} color={COLORES.primario} />
+                <Text style={estilos.statNum} numberOfLines={1}>{formatearMoneda(totales.totalVentas)}</Text>
+                <Text style={estilos.statLabel}>En ventas</Text>
+              </View>
+              <View style={estilos.statCard}>
+                <Ionicons name="time-outline" size={18} color={COLORES.peligro} />
+                <Text style={[estilos.statNum, { color: COLORES.peligro }]} numberOfLines={1}>{formatearMoneda(totales.totalPendiente)}</Text>
+                <Text style={estilos.statLabel}>Pendiente</Text>
+              </View>
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
           <View style={estilos.vacio}>
             <View style={estilos.vacioIconBox}>
-              <Ionicons name="cube-outline" size={40} color={COLORES.textoDeshabilitado} />
+              <Ionicons name="cube-outline" size={44} color={COLORES.textoDeshabilitado} />
             </View>
             <Text style={estilos.vacioTitulo}>
-              {filtroActivo === 'todos' ? 'Sin pedidos' : `Sin ${filtroActivo}`}
+              {filtroActivo === 'todos' ? 'Sin pedidos aún' : `Sin ${filtroActivo}`}
             </Text>
             <Text style={estilos.vacioTexto}>
               {filtroActivo === 'pendientes'
-                ? 'Todos los pedidos están pagados'
-                : 'Creá tu primer pedido de compra o venta'}
+                ? '¡Todos los pedidos están al día!'
+                : 'Tocá + para crear tu primer pedido'}
             </Text>
           </View>
         }
-        showsVerticalScrollIndicator={false}
       />
       <FAB onPress={() => navigation.navigate('CrearPedido', {})} />
     </SafeAreaView>
@@ -174,6 +265,7 @@ const ListaPedidos: React.FC<Props> = ({ navigation }) => {
 };
 
 const estilos = StyleSheet.create({
+  // Filtros
   filtrosWrapper: {
     backgroundColor: COLORES.tarjeta,
     borderBottomWidth: 1,
@@ -216,57 +308,168 @@ const estilos = StyleSheet.create({
 
   lista: { padding: ESPACIADO.md, paddingBottom: 100 },
   listaVacia: { flex: 1 },
-  item: {
+
+  // Stats
+  statsRow: {
     flexDirection: 'row',
+    gap: ESPACIADO.sm,
+    marginBottom: ESPACIADO.md,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: COLORES.tarjeta,
+    borderRadius: RADIO.lg,
+    padding: ESPACIADO.sm,
     alignItems: 'center',
+    gap: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  statNum: {
+    fontSize: FUENTE.tamanoPequeno,
+    fontWeight: FUENTE.pesoBold,
+    color: COLORES.texto,
+  },
+  statLabel: {
+    fontSize: 10,
+    color: COLORES.textoSecundario,
+    fontWeight: FUENTE.pesoSemibold,
+  },
+
+  // Card pedido
+  card: {
     backgroundColor: COLORES.tarjeta,
     borderRadius: RADIO.xl,
     padding: ESPACIADO.md,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
     elevation: 2,
+    gap: ESPACIADO.sm,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: ESPACIADO.sm,
+  },
+  cardHeaderLeft: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: ESPACIADO.sm,
   },
   tipoIconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: RADIO.md,
+    width: 34,
+    height: 34,
+    borderRadius: RADIO.sm,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: ESPACIADO.sm,
   },
-  itemInfo: { flex: 1, gap: 5 },
-  persona: {
-    fontSize: FUENTE.tamanoBase,
-    fontWeight: FUENTE.pesoSemibold,
+  pedidoSubId: {
+    fontSize: FUENTE.tamanoXs,
+    color: COLORES.textoSecundario,
+    marginTop: 2,
+    fontWeight: FUENTE.pesoMedio,
+  },
+  tipoTexto: {
+    fontSize: FUENTE.tamanoPequeno,
+    fontWeight: FUENTE.pesoBold,
+  },
+  fecha: {
+    fontSize: FUENTE.tamanoXs,
+    color: COLORES.textoSecundario,
+    marginTop: 1,
+  },
+  estadoBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 0,
+    gap: 4,
+    borderRadius: RADIO.full,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  estadoTexto: {
+    fontSize: 10,
+    fontWeight: FUENTE.pesoBold,
+  },
+  personaNombre: {
+    fontSize: FUENTE.tamanoMedio,
+    fontWeight: FUENTE.pesoBold,
     color: COLORES.texto,
   },
-  metaFila: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  tipoBadge: {
-    borderRadius: RADIO.full,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
+  cardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: ESPACIADO.md,
   },
-  tipoBadgeTexto: { fontSize: FUENTE.tamanoXs, fontWeight: FUENTE.pesoBold },
-  metaSep: { fontSize: FUENTE.tamanoPequeno, color: COLORES.textoDeshabilitado },
-  fecha: { fontSize: FUENTE.tamanoPequeno, color: COLORES.textoSecundario },
-  itemRight: { alignItems: 'flex-end', gap: 4 },
-  total: { fontSize: FUENTE.tamanoBase, fontWeight: FUENTE.pesoBold, color: COLORES.texto },
-  totalPendiente: { color: COLORES.peligro },
+  progressWrapper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: ESPACIADO.xs,
+  },
+  progressBg: {
+    flex: 1,
+    height: 5,
+    backgroundColor: COLORES.grisClaro,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressBar: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  progressPct: {
+    fontSize: FUENTE.tamanoXs,
+    color: COLORES.textoSecundario,
+    fontWeight: FUENTE.pesoSemibold,
+    minWidth: 28,
+    textAlign: 'right',
+  },
+  totalArea: { alignItems: 'flex-end' },
+  totalLabel: {
+    fontSize: 9,
+    color: COLORES.textoSecundario,
+    fontWeight: FUENTE.pesoSemibold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  totalMonto: {
+    fontSize: FUENTE.tamanoBase,
+    fontWeight: FUENTE.pesoBold,
+    color: COLORES.texto,
+  },
 
+  // Vacío
   vacio: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: ESPACIADO.xl },
   vacioIconBox: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 88,
+    height: 88,
+    borderRadius: 44,
     backgroundColor: COLORES.grisClaro,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: ESPACIADO.md,
   },
-  vacioTitulo: { fontSize: FUENTE.tamanoGrande, fontWeight: FUENTE.pesoBold, color: COLORES.texto, marginBottom: ESPACIADO.xs },
-  vacioTexto: { fontSize: FUENTE.tamanoBase, color: COLORES.textoSecundario, textAlign: 'center' },
+  vacioTitulo: {
+    fontSize: FUENTE.tamanoGrande,
+    fontWeight: FUENTE.pesoBold,
+    color: COLORES.texto,
+    marginBottom: 6,
+  },
+  vacioTexto: {
+    fontSize: FUENTE.tamanoBase,
+    color: COLORES.textoSecundario,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
 });
 
 export default ListaPedidos;

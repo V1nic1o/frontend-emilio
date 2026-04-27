@@ -46,7 +46,7 @@ export const estilos = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: ESPACIADO.sm,
   },
-  gananciaTituloLeft: { gap: 5 },
+  gananciaTituloLeft: { flex: 1, minWidth: 0, gap: 5 },
   gananciaBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -68,15 +68,49 @@ export const estilos = StyleSheet.create({
     justifyContent: 'center',
   },
   gananciaValor: {
+    alignSelf: 'stretch',
     fontSize: 36,
     fontWeight: FUENTE.pesoBold,
     color: COLORES.blanco,
     letterSpacing: -1.5,
+    marginBottom: ESPACIADO.sm,
+  },
+  gananciaNetaSplit: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
     marginBottom: ESPACIADO.md,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: RADIO.lg,
+    paddingVertical: ESPACIADO.sm,
+    paddingHorizontal: ESPACIADO.xs,
+  },
+  gananciaNetaSplitCol: { flex: 1, minWidth: 0, alignItems: 'center', gap: 4, paddingHorizontal: 4 },
+  gananciaNetaSplitSep: { width: 1, backgroundColor: 'rgba(255,255,255,0.25)', alignSelf: 'stretch' },
+  gananciaNetaSplitTitulo: {
+    fontSize: 10,
+    fontWeight: FUENTE.pesoBold,
+    color: 'rgba(255,255,255,0.85)',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  gananciaNetaSplitMonto: { fontSize: FUENTE.tamanoPequeno, fontWeight: FUENTE.pesoBold, color: COLORES.blanco },
+  gananciaNetaSplitIngresos: {
+    fontSize: 9,
+    color: 'rgba(255,255,255,0.6)',
+    textAlign: 'center',
+    marginTop: 2,
+  },
+  gananciaNetaSplitAyuda: {
+    fontSize: 9,
+    color: 'rgba(255,255,255,0.55)',
+    textAlign: 'center',
+    marginBottom: ESPACIADO.sm,
+    lineHeight: 13,
+    paddingHorizontal: ESPACIADO.xs,
   },
   gananciaDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.2)', marginBottom: ESPACIADO.md },
   gananciaDesglose: { flexDirection: 'row', alignItems: 'center' },
-  gananciaItem: { flex: 1, alignItems: 'center', gap: 3 },
+  gananciaItem: { flex: 1, minWidth: 0, alignItems: 'center', gap: 3 },
   gananciaItemLabel: { fontSize: FUENTE.tamanoXs, color: 'rgba(255,255,255,0.75)' },
   gananciaItemValor: { fontSize: FUENTE.tamanoPequeno, fontWeight: FUENTE.pesoBold, color: COLORES.blanco },
   gananciaItemSep: { width: 1, height: 28, backgroundColor: 'rgba(255,255,255,0.2)' },
@@ -87,6 +121,13 @@ export const estilos = StyleSheet.create({
     borderTopColor: 'rgba(255,255,255,0.15)',
   },
   gananciaFooterTexto: { fontSize: FUENTE.tamanoXs, color: 'rgba(255,255,255,0.7)', textAlign: 'center' },
+  gananciaTocarHint: {
+    marginTop: ESPACIADO.sm,
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.55)',
+    textAlign: 'center',
+    fontWeight: FUENTE.pesoSemibold,
+  },
 
   // ─── Barras por mes ───────────────────────────────────────────────────────
   barrasScroll: { marginBottom: ESPACIADO.md, marginHorizontal: -ESPACIADO.md },
@@ -102,7 +143,14 @@ export const estilos = StyleSheet.create({
   barraCardActual: { borderColor: COLORES.primario, backgroundColor: COLORES.primarioClaro },
   barraMes: { fontSize: FUENTE.tamanoXs, color: COLORES.textoSecundario, fontWeight: FUENTE.pesoSemibold, marginBottom: 4 },
   barraMesActual: { color: COLORES.primario },
-  barraValor: { fontSize: FUENTE.tamanoXs, fontWeight: FUENTE.pesoBold, marginBottom: 5 },
+  barraValor: { fontSize: FUENTE.tamanoXs, fontWeight: FUENTE.pesoBold, marginBottom: 3 },
+  barraIva: {
+    fontSize: 10,
+    color: COLORES.textoSecundario,
+    fontWeight: FUENTE.pesoSemibold,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
   barraIndicador: { width: 20, height: 3, borderRadius: 2 },
 
   // ─── Total histórico ──────────────────────────────────────────────────────
@@ -118,10 +166,16 @@ export const estilos = StyleSheet.create({
     elevation: 1,
   },
   totalHistFila: { flexDirection: 'row', alignItems: 'center' },
-  totalHistItem: { flex: 1, alignItems: 'center', gap: 4, paddingVertical: ESPACIADO.xs },
+  totalHistItem: { flex: 1, minWidth: 0, alignItems: 'center', gap: 4, paddingVertical: ESPACIADO.xs },
   totalHistLabel: { fontSize: FUENTE.tamanoXs, color: COLORES.textoSecundario, textAlign: 'center' },
   totalHistValor: { fontSize: FUENTE.tamanoPequeno, fontWeight: FUENTE.pesoBold, textAlign: 'center' },
   totalHistSep: { width: 1, height: 40, backgroundColor: COLORES.borde },
+  totalHistRowSep: {
+    height: 1,
+    backgroundColor: COLORES.borde,
+    marginVertical: ESPACIADO.sm,
+    alignSelf: 'stretch',
+  },
 
   // ─── Sección títulos ──────────────────────────────────────────────────────
   seccionTituloFila: {
@@ -143,6 +197,7 @@ export const estilos = StyleSheet.create({
   gridDos: { flexDirection: 'row', gap: ESPACIADO.sm, marginBottom: ESPACIADO.sm },
   tarjeta: {
     flex: 1,
+    minWidth: 0,
     backgroundColor: COLORES.tarjeta,
     borderRadius: RADIO.xl,
     padding: ESPACIADO.md,
@@ -174,6 +229,7 @@ export const estilos = StyleSheet.create({
   accionesGrid: { flexDirection: 'row', gap: ESPACIADO.sm, marginBottom: ESPACIADO.sm },
   accion: {
     flex: 1,
+    minWidth: 0,
     backgroundColor: COLORES.tarjeta,
     borderRadius: RADIO.xl,
     padding: ESPACIADO.md,
@@ -217,7 +273,7 @@ export const estilos = StyleSheet.create({
     justifyContent: 'center',
     marginRight: ESPACIADO.sm,
   },
-  pendInfo: { flex: 1 },
+  pendInfo: { flex: 1, minWidth: 0 },
   pendPersona: { fontSize: FUENTE.tamanoBase, fontWeight: FUENTE.pesoSemibold, color: COLORES.texto },
   pendFecha: { fontSize: FUENTE.tamanoXs, color: COLORES.textoSecundario, marginTop: 2 },
   pendDer: { alignItems: 'flex-end', gap: 3, marginRight: 2 },

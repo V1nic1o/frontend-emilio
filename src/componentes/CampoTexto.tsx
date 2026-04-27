@@ -101,6 +101,7 @@ const estilos = StyleSheet.create({
   iconoDer: { marginLeft: ESPACIADO.sm, padding: 2 },
   input: {
     flex: 1,
+    minWidth: 0,
     fontSize: FUENTE.tamanoBase,
     color: COLORES.texto,
     paddingVertical: ESPACIADO.sm,
@@ -119,6 +120,8 @@ const estilos = StyleSheet.create({
     marginTop: 5,
   },
   error: {
+    flex: 1,
+    minWidth: 0,
     fontSize: FUENTE.tamanoXs,
     color: COLORES.peligro,
   },

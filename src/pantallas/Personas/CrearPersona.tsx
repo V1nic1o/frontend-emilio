@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { PersonasStackParamList } from '../../navegacion/tipos';
 import { usePersonas } from '../../hooks/usePersonas';
@@ -18,7 +19,7 @@ import { TipoPersona } from '../../tipos';
 import CampoTexto from '../../componentes/CampoTexto';
 import BotonPrimario from '../../componentes/BotonPrimario';
 import { COLORES } from '../../estilos/colores';
-import { FUENTE, ESPACIADO, RADIO, estilosComunes } from '../../estilos/tema';
+import { FUENTE, ESPACIADO, RADIO, estilosComunes, SCROLL_FORM_PADDING_BOTTOM } from '../../estilos/tema';
 
 type Props = NativeStackScreenProps<PersonasStackParamList, 'CrearPersona'>;
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -58,8 +59,24 @@ const CrearPersona: React.FC<Props> = ({ navigation }) => {
   const { crear } = usePersonas();
   const [nombre, setNombre] = useState('');
   const [tipo, setTipo] = useState<TipoPersona>('cliente');
+  const [direccion, setDireccion] = useState('');
+  const [email, setEmail] = useState('');
+  const [telefono, setTelefono] = useState('');
+  const [nit, setNit] = useState('');
   const [guardando, setGuardando] = useState(false);
   const [errorNombre, setErrorNombre] = useState('');
+
+  useFocusEffect(
+    useCallback(() => {
+      setNombre('');
+      setTipo('cliente');
+      setDireccion('');
+      setEmail('');
+      setTelefono('');
+      setNit('');
+      setErrorNombre('');
+    }, [])
+  );
 
   const validar = (): boolean => {
     if (!nombre.trim()) {
@@ -78,7 +95,14 @@ const CrearPersona: React.FC<Props> = ({ navigation }) => {
     if (!validar()) return;
     setGuardando(true);
     try {
-      await crear({ nombre: nombre.trim(), tipo });
+      await crear({
+        nombre: nombre.trim(),
+        tipo,
+        nit: nit.trim() || undefined,
+        direccion: direccion.trim() || undefined,
+        email: email.trim() || undefined,
+        telefono: telefono.trim() || undefined,
+      });
       navigation.goBack();
     } catch (e: unknown) {
       Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo crear la persona');
@@ -93,7 +117,7 @@ const CrearPersona: React.FC<Props> = ({ navigation }) => {
     <SafeAreaView style={estilosComunes.contenedor} edges={['bottom']}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView
-          contentContainerStyle={estilos.scroll}
+          contentContainerStyle={[estilos.scroll, { paddingBottom: SCROLL_FORM_PADDING_BOTTOM }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -133,6 +157,41 @@ const CrearPersona: React.FC<Props> = ({ navigation }) => {
             autoFocus
             maxLength={100}
             contenedor={{ marginTop: ESPACIADO.lg }}
+          />
+
+          <CampoTexto
+            etiqueta="NIT (opcional)"
+            placeholder="Ej: 1234567-8 o CF"
+            value={nit}
+            onChangeText={setNit}
+            icono="card-outline"
+            maxLength={30}
+            autoCapitalize="characters"
+          />
+
+          <CampoTexto
+            etiqueta="Dirección (opcional)"
+            placeholder="Ej: Calle 5 #12, Ciudad"
+            value={direccion}
+            onChangeText={setDireccion}
+            icono="location-outline"
+          />
+          <CampoTexto
+            etiqueta="Email (opcional)"
+            placeholder="Ej: contacto@email.com"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            icono="mail-outline"
+          />
+          <CampoTexto
+            etiqueta="Teléfono (opcional)"
+            placeholder="Ej: +502 3012 3456"
+            value={telefono}
+            onChangeText={setTelefono}
+            keyboardType="phone-pad"
+            icono="call-outline"
           />
         </ScrollView>
 

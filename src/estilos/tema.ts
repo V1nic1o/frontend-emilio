@@ -10,6 +10,9 @@ export const ESPACIADO = {
   xxl: 48,
 };
 
+/** Padding inferior en ScrollView de formularios: permite desplazar el campo activo por encima del teclado (Android + iOS). */
+export const SCROLL_FORM_PADDING_BOTTOM = 140;
+
 export const RADIO = {
   sm: 8,
   md: 12,

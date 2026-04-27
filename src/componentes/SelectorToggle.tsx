@@ -67,6 +67,7 @@ const estilos = StyleSheet.create({
   },
   opcion: {
     flex: 1,
+    minWidth: 0,
     paddingVertical: ESPACIADO.sm,
     alignItems: 'center',
     borderRadius: RADIO.sm,
@@ -75,6 +76,7 @@ const estilos = StyleSheet.create({
     backgroundColor: COLORES.primario,
   },
   texto: {
+    textAlign: 'center',
     fontSize: FUENTE.tamanoBase,
     color: COLORES.textoSecundario,
     fontWeight: FUENTE.pesoMedio,
