@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, ActivityIndicator, TouchableOpacity, Text, StyleSheet, Platform } from 'react-native';
+import { View, ActivityIndicator, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -294,12 +294,10 @@ const TAB_ICONS: Record<string, { activo: IoniconName; inactivo: IoniconName }> 
   MasTab:      { activo: 'grid',         inactivo: 'grid-outline' },
 };
 
-const TAM_ETIQUETA_TAB = Platform.OS === 'web' ? 12 : 9;
-const ALTURA_BASE_TAB = Platform.OS === 'web' ? 56 : 52;
-
 function AppTabs() {
   const insets = useSafeAreaInsets();
   const tabBarPaddingBottom = Math.max(insets.bottom, 10);
+  const tabBarAlturaBase = 52;
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -315,12 +313,12 @@ function AppTabs() {
           backgroundColor: COLORES.tarjeta,
           borderTopColor: COLORES.borde,
           borderTopWidth: 1,
-          height: ALTURA_BASE_TAB + tabBarPaddingBottom,
+          height: tabBarAlturaBase + tabBarPaddingBottom,
           paddingBottom: tabBarPaddingBottom,
           paddingTop: 8,
         },
         tabBarLabelStyle: {
-          fontSize: TAM_ETIQUETA_TAB,
+          fontSize: 9,
           fontWeight: FUENTE.pesoSemibold,
         },
       })}
@@ -383,6 +381,7 @@ const TAB_ICONS_PERSONAL: Record<string, { activo: IoniconName; inactivo: Ionico
 function AppTabsPersonal() {
   const insets = useSafeAreaInsets();
   const tabBarPaddingBottom = Math.max(insets.bottom, 10);
+  const tabBarAlturaBase = 52;
   return (
     <TabPersonal.Navigator
       screenOptions={({ route }) => ({
@@ -401,12 +400,12 @@ function AppTabsPersonal() {
           backgroundColor: PERSONAL.headerFondo,
           borderTopColor: COLORES.borde,
           borderTopWidth: 1,
-          height: ALTURA_BASE_TAB + tabBarPaddingBottom,
+          height: tabBarAlturaBase + tabBarPaddingBottom,
           paddingBottom: tabBarPaddingBottom,
           paddingTop: 8,
         },
         tabBarLabelStyle: {
-          fontSize: TAM_ETIQUETA_TAB,
+          fontSize: 9,
           fontWeight: FUENTE.pesoSemibold,
         },
       })}
