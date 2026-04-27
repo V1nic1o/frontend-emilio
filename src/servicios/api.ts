@@ -1,6 +1,6 @@
 import axios, { isAxiosError } from 'axios';
 import { DeviceEventEmitter } from 'react-native';
-import * as SecureStore from 'expo-secure-store';
+import { borrarTokenAlmacenado, getTokenAlmacenado } from '../utilidades/almacenamientoToken';
 
 /** Mismo evento en AuthContext: sesión inválida en la API (401). */
 export const EVENTO_SESION_INVALIDA = 'auth:sesionInvalida';
@@ -23,12 +23,8 @@ const api = axios.create({
 });
 
 api.interceptors.request.use(async (config) => {
-  try {
-    const token = await SecureStore.getItemAsync('auth_token');
-    if (token) config.headers.Authorization = `Bearer ${token}`;
-  } catch {
-    // SecureStore puede fallar en web/emulador sin soporte
-  }
+  const token = await getTokenAlmacenado();
+  if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
@@ -41,7 +37,7 @@ api.interceptors.response.use(
         ruta.includes('auth/login') || ruta.includes('auth/registrar');
       if (!esAuthPublico) {
         try {
-          await SecureStore.deleteItemAsync('auth_token');
+          await borrarTokenAlmacenado();
         } catch {
           // —
         }

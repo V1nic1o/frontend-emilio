@@ -7,7 +7,6 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +17,7 @@ import CampoTexto from '../../componentes/CampoTexto';
 import BotonPrimario from '../../componentes/BotonPrimario';
 import { COLORES } from '../../estilos/colores';
 import { FUENTE, ESPACIADO, RADIO, SCROLL_FORM_PADDING_BOTTOM } from '../../estilos/tema';
+import { mostrarAlerta } from '../../utilidades/alertaPlataforma';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 
@@ -29,14 +29,14 @@ const Login: React.FC<Props> = ({ navigation }) => {
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
-      Alert.alert('Campos requeridos', 'Ingresá tu email y contraseña');
+      mostrarAlerta('Campos requeridos', 'Ingresá tu email y contraseña');
       return;
     }
     setCargando(true);
     try {
       await login(email.trim().toLowerCase(), password);
     } catch (e: unknown) {
-      Alert.alert('Error al iniciar sesión', e instanceof Error ? e.message : 'Intentá nuevamente');
+      mostrarAlerta('Error al iniciar sesión', e instanceof Error ? e.message : 'Intentá nuevamente');
     } finally {
       setCargando(false);
     }

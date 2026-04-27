@@ -7,7 +7,6 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +17,7 @@ import CampoTexto from '../../componentes/CampoTexto';
 import BotonPrimario from '../../componentes/BotonPrimario';
 import { COLORES } from '../../estilos/colores';
 import { FUENTE, ESPACIADO, RADIO, SCROLL_FORM_PADDING_BOTTOM } from '../../estilos/tema';
+import { mostrarAlerta } from '../../utilidades/alertaPlataforma';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Registro'>;
 
@@ -31,22 +31,22 @@ const Registro: React.FC<Props> = ({ navigation }) => {
 
   const handleRegistrar = async () => {
     if (!nombre.trim() || !email.trim() || !password || !confirmar) {
-      Alert.alert('Campos requeridos', 'Completá todos los campos');
+      mostrarAlerta('Campos requeridos', 'Completá todos los campos');
       return;
     }
     if (password !== confirmar) {
-      Alert.alert('Contraseñas distintas', 'Las contraseñas no coinciden');
+      mostrarAlerta('Contraseñas distintas', 'Las contraseñas no coinciden');
       return;
     }
     if (password.length < 6) {
-      Alert.alert('Contraseña corta', 'La contraseña debe tener al menos 6 caracteres');
+      mostrarAlerta('Contraseña corta', 'La contraseña debe tener al menos 6 caracteres');
       return;
     }
     setCargando(true);
     try {
       await registrar(email.trim().toLowerCase(), password, nombre.trim());
     } catch (e: unknown) {
-      Alert.alert('Error al registrarse', e instanceof Error ? e.message : 'Intentá nuevamente');
+      mostrarAlerta('Error al registrarse', e instanceof Error ? e.message : 'Intentá nuevamente');
     } finally {
       setCargando(false);
     }

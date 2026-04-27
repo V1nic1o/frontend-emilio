@@ -7,9 +7,9 @@ import React, {
 } from 'react';
 import { DeviceEventEmitter } from 'react-native';
 import { isAxiosError } from 'axios';
-import * as SecureStore from 'expo-secure-store';
 import { authServicio, UsuarioAuth } from '../servicios/auth.servicio';
 import { EVENTO_SESION_INVALIDA } from '../servicios/api';
+import { borrarTokenAlmacenado, getTokenAlmacenado, setTokenAlmacenado } from '../utilidades/almacenamientoToken';
 
 interface AuthContextType {
   usuario: UsuarioAuth | null;
@@ -35,14 +35,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const verificar = async () => {
       try {
-        const token = await SecureStore.getItemAsync('auth_token');
+        const token = await getTokenAlmacenado();
         if (token) {
           const me = await authServicio.me();
           setUsuario(me);
         }
       } catch (e) {
         if (isAxiosError(e) && (e.response?.status === 401 || e.response?.status === 403)) {
-          await SecureStore.deleteItemAsync('auth_token').catch(() => {});
+          await borrarTokenAlmacenado().catch(() => {});
         }
         // Fallo de red u otro: no se borra el token (el usuario puede reintentar)
         setUsuario(null);
@@ -63,18 +63,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     const { token, usuario: user } = await authServicio.login(email, password);
-    await SecureStore.setItemAsync('auth_token', token);
+    await setTokenAlmacenado(token);
     setUsuario(user);
   }, []);
 
   const registrar = useCallback(async (email: string, password: string, nombre: string) => {
     const { token, usuario: user } = await authServicio.registrar(email, password, nombre);
-    await SecureStore.setItemAsync('auth_token', token);
+    await setTokenAlmacenado(token);
     setUsuario(user);
   }, []);
 
   const cerrarSesion = useCallback(async () => {
-    await SecureStore.deleteItemAsync('auth_token').catch(() => {});
+    await borrarTokenAlmacenado().catch(() => {});
     setUsuario(null);
   }, []);
 
