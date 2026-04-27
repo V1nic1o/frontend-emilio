@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Updates from 'expo-updates';
 import Navegacion from './src/navegacion/Navegacion';
+import { ContenedorLayoutWeb } from './src/componentes/ContenedorLayoutWeb';
 import { AuthProvider } from './src/contexto/AuthContext';
 import { WalletProvider } from './src/contexto/WalletContext';
 import { CarritoCatalogoPedidoProvider } from './src/contexto/CarritoCatalogoContext';
@@ -28,14 +29,16 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <StatusBar style="dark" />
-      <AuthProvider>
-        <WalletProvider>
-          <CarritoCatalogoPedidoProvider>
-            <Navegacion />
-          </CarritoCatalogoPedidoProvider>
-        </WalletProvider>
-      </AuthProvider>
+      <ContenedorLayoutWeb>
+        <StatusBar style="dark" />
+        <AuthProvider>
+          <WalletProvider>
+            <CarritoCatalogoPedidoProvider>
+              <Navegacion />
+            </CarritoCatalogoPedidoProvider>
+          </WalletProvider>
+        </AuthProvider>
+      </ContenedorLayoutWeb>
     </SafeAreaProvider>
   );
 }
