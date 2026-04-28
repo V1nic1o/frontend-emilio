@@ -6,7 +6,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   RefreshControl,
-  Alert,
   Modal,
   TextInput,
   KeyboardAvoidingView,
@@ -26,6 +25,7 @@ import { COLORES } from '../../../estilos/colores';
 import { PERSONAL } from '../../../estilos/personalTema';
 import { FUENTE, ESPACIADO, RADIO, estilosComunes } from '../../../estilos/tema';
 import { formatearMoneda, parsearNumero } from '../../../utilidades/formato';
+import { mostrarAlerta, confirmarAsync } from '../../../utilidades/alertaPlataforma';
 
 type Props = NativeStackScreenProps<AhorrosPersonalStackParamList, 'ListaAhorrosPersonales'>;
 
@@ -44,7 +44,7 @@ const ListaAhorrosPersonales: React.FC<Props> = ({ navigation }) => {
     if (!modal) return;
     const s = parsearNumero(sumTxt);
     if (s <= 0) {
-      Alert.alert('Monto inválido', 'Ingresá un monto mayor a 0');
+      mostrarAlerta('Monto inválido', 'Ingresá un monto mayor a 0');
       return;
     }
     setGuardando(true);
@@ -54,7 +54,7 @@ const ListaAhorrosPersonales: React.FC<Props> = ({ navigation }) => {
       setSumTxt('');
       await cargar();
     } catch (e: unknown) {
-      Alert.alert('Error', e instanceof Error ? e.message : '');
+      mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo guardar');
     } finally {
       setGuardando(false);
     }
@@ -105,10 +105,18 @@ const ListaAhorrosPersonales: React.FC<Props> = ({ navigation }) => {
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => {
-                      Alert.alert('Eliminar', `¿Quitar «${item.nombre}»?`, [
-                        { text: 'Cancelar', style: 'cancel' },
-                        { text: 'Eliminar', style: 'destructive', onPress: () => void eliminar(item.id).catch(() => {}) },
-                      ]);
+                      void (async () => {
+                        const ok = await confirmarAsync('Eliminar', `¿Quitar «${item.nombre}»?`, {
+                          textoAceptar: 'Eliminar',
+                          destructivo: true,
+                        });
+                        if (!ok) return;
+                        try {
+                          await eliminar(item.id);
+                        } catch {
+                          /* — */
+                        }
+                      })();
                     }}
                     hitSlop={10}
                     accessibilityLabel="Eliminar meta"

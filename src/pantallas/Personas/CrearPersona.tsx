@@ -4,7 +4,6 @@ import {
   Text,
   ScrollView,
   StyleSheet,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
@@ -20,6 +19,7 @@ import CampoTexto from '../../componentes/CampoTexto';
 import BotonPrimario from '../../componentes/BotonPrimario';
 import { COLORES } from '../../estilos/colores';
 import { FUENTE, ESPACIADO, RADIO, estilosComunes, SCROLL_FORM_PADDING_BOTTOM } from '../../estilos/tema';
+import { mostrarAlerta } from '../../utilidades/alertaPlataforma';
 
 type Props = NativeStackScreenProps<PersonasStackParamList, 'CrearPersona'>;
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -105,7 +105,7 @@ const CrearPersona: React.FC<Props> = ({ navigation }) => {
       });
       navigation.goBack();
     } catch (e: unknown) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo crear la persona');
+      mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo crear la persona');
     } finally {
       setGuardando(false);
     }

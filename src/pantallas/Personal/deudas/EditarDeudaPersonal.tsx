@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, ScrollView, KeyboardAvoidingView, Platform, Alert, Text, StyleSheet } from 'react-native';
+import { View, ScrollView, KeyboardAvoidingView, Platform, Text, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { DeudasPersonalStackParamList } from '../../../navegacion/tipos';
@@ -10,6 +10,7 @@ import { COLORES } from '../../../estilos/colores';
 import { PERSONAL } from '../../../estilos/personalTema';
 import { estilosComunes, ESPACIADO, SCROLL_FORM_PADDING_BOTTOM, FUENTE } from '../../../estilos/tema';
 import { parsearNumero, formatearMoneda } from '../../../utilidades/formato';
+import { mostrarAlerta, alertaUnBoton } from '../../../utilidades/alertaPlataforma';
 
 type Props = NativeStackScreenProps<DeudasPersonalStackParamList, 'EditarDeudaPersonal'>;
 
@@ -49,23 +50,26 @@ const EditarDeudaPersonal: React.FC<Props> = ({ navigation, route }) => {
 
   useEffect(() => {
     if (deudas.length > 0 && !deudas.some((x) => x.id === deudaId)) {
-      Alert.alert('No encontrado', 'Esta deuda ya no existe.', [{ text: 'OK', onPress: () => navigation.goBack() }]);
+      alertaUnBoton('No encontrado', 'Esta deuda ya no existe.', {
+        textoBoton: 'OK',
+        onPress: () => navigation.goBack(),
+      });
     }
   }, [deudas, deudaId, navigation]);
 
   const guardar = async () => {
     if (!titulo.trim()) {
-      Alert.alert('Datos', 'Agregá un título');
+      mostrarAlerta('Datos', 'Agregá un título');
       return;
     }
     const orig = parsearNumero(montoOriginal);
     if (orig <= 0) {
-      Alert.alert('Datos', 'El monto total debe ser mayor a 0');
+      mostrarAlerta('Datos', 'El monto total debe ser mayor a 0');
       return;
     }
     const fechaTrim = fecha.trim();
     if (!fechaTrim || !/^\d{4}-\d{2}-\d{2}$/.test(fechaTrim)) {
-      Alert.alert('Fecha', 'Ingresá la fecha en formato AAAA-MM-DD');
+      mostrarAlerta('Fecha', 'Ingresá la fecha en formato AAAA-MM-DD');
       return;
     }
     setGuardando(true);
@@ -78,7 +82,7 @@ const EditarDeudaPersonal: React.FC<Props> = ({ navigation, route }) => {
       });
       navigation.goBack();
     } catch (e: unknown) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo guardar');
+      mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo guardar');
     } finally {
       setGuardando(false);
     }

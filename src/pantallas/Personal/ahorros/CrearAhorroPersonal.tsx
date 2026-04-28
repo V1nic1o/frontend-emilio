@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, ScrollView, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { View, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AhorrosPersonalStackParamList } from '../../../navegacion/tipos';
@@ -9,6 +9,7 @@ import BotonPrimario from '../../../componentes/BotonPrimario';
 import { PERSONAL } from '../../../estilos/personalTema';
 import { estilosComunes, ESPACIADO, SCROLL_FORM_PADDING_BOTTOM } from '../../../estilos/tema';
 import { parsearNumero } from '../../../utilidades/formato';
+import { mostrarAlerta } from '../../../utilidades/alertaPlataforma';
 
 type Props = NativeStackScreenProps<AhorrosPersonalStackParamList, 'CrearAhorroPersonal'>;
 
@@ -21,13 +22,13 @@ const CrearAhorroPersonal: React.FC<Props> = ({ navigation }) => {
 
   const guardar = async () => {
     if (!nombre.trim()) {
-      Alert.alert('Datos', 'Agregá un nombre a la meta');
+      mostrarAlerta('Datos', 'Agregá un nombre a la meta');
       return;
     }
     const metaNum = meta.trim() ? parsearNumero(meta) : 0;
     const ini = inicial.trim() ? parsearNumero(inicial) : 0;
     if (meta.trim() && metaNum <= 0) {
-      Alert.alert('Datos', 'La meta debe ser mayor a 0 o dejala vacía');
+      mostrarAlerta('Datos', 'La meta debe ser mayor a 0 o dejala vacía');
       return;
     }
     setGuardando(true);
@@ -39,7 +40,7 @@ const CrearAhorroPersonal: React.FC<Props> = ({ navigation }) => {
       });
       navigation.goBack();
     } catch (e: unknown) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo guardar');
+      mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo guardar');
     } finally {
       setGuardando(false);
     }

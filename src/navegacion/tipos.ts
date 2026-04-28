@@ -53,8 +53,11 @@ export type GastosStackParamList = {
 };
 
 export type CatalogoStackParamList = {
-  CatalogoProductos: undefined;
+  /** `limpiarSeleccion` lo envía la pantalla de revisión al volver tras agregar al carrito. */
+  CatalogoProductos: { limpiarSeleccion?: true } | undefined;
   FormProducto: { productoId?: number };
+  /** Revisión de ítems elegidos en modo «Armar pedido» antes de sumarlos al carrito. */
+  AgregarSeleccionCatalogo: { productoIds: number[] };
 };
 
 export type EmpresaStackParamList = {

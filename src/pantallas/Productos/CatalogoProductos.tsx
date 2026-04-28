@@ -5,7 +5,6 @@ import {
   FlatList,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   RefreshControl,
   TextInput,
   ScrollView,
@@ -13,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { CommonActions, useFocusEffect } from '@react-navigation/native';
+import { CommonActions, useFocusEffect, RouteProp, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { CatalogoStackParamList } from '../../navegacion/tipos';
 import { useWallet } from '../../contexto/WalletContext';
@@ -26,6 +25,7 @@ import ErrorMensaje from '../../componentes/ErrorMensaje';
 import { COLORES } from '../../estilos/colores';
 import { FUENTE, ESPACIADO, RADIO, estilosComunes } from '../../estilos/tema';
 import { formatearMoneda, parsearNumero } from '../../utilidades/formato';
+import { mostrarAlerta, confirmarYEntonces } from '../../utilidades/alertaPlataforma';
 
 type Props = NativeStackScreenProps<CatalogoStackParamList, 'CatalogoProductos'>;
 
@@ -81,6 +81,7 @@ const COL_GAP_GRID = ESPACIADO.xs;
 const PADDING_GRID = ESPACIADO.sm;
 
 const CatalogoProductos: React.FC<Props> = ({ navigation }) => {
+  const route = useRoute<RouteProp<CatalogoStackParamList, 'CatalogoProductos'>>();
   const { width: anchoVentana } = useWindowDimensions();
   const cardWidthGrid = useMemo(
     () => (anchoVentana - PADDING_GRID * 2 - COL_GAP_GRID * (COLS_CATALOGO - 1)) / COLS_CATALOGO,
@@ -92,7 +93,6 @@ const CatalogoProductos: React.FC<Props> = ({ navigation }) => {
     lineas,
     unidadesEnCarrito,
     agregarProducto,
-    agregarSeleccion,
     ajustarCantidadPorProductoId,
     setCantidadAbsolutaPorProductoId,
     limpiarCarrito,
@@ -126,6 +126,14 @@ const CatalogoProductos: React.FC<Props> = ({ navigation }) => {
     }, [cargar]),
   );
 
+  useEffect(() => {
+    if (route.params?.limpiarSeleccion) {
+      setSeleccionIds(new Set());
+      setModoArmarPedido(false);
+      navigation.setParams({ limpiarSeleccion: undefined });
+    }
+  }, [route.params?.limpiarSeleccion, navigation]);
+
   const productosFiltrados = useMemo(() => {
     const q = normalizarBusqueda(busqueda);
     if (!q) return productos;
@@ -141,37 +149,24 @@ const CatalogoProductos: React.FC<Props> = ({ navigation }) => {
     });
   }, []);
 
-  const agregarSeleccionadosAlCarrito = useCallback(() => {
-    const elegidos = productos.filter((p) => seleccionIds.has(p.id));
-    if (elegidos.length === 0) return;
-    agregarSeleccion(elegidos);
-    setSeleccionIds(new Set());
-  }, [productos, seleccionIds, agregarSeleccion]);
-
   const handleEliminar = useCallback((producto: Producto) => {
-    Alert.alert(
+    confirmarYEntonces(
       `Eliminar "${producto.nombre}"`,
       'Los pedidos que lo usen no se verán afectados.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await productosServicio.eliminar(producto.id);
-              setProductos((prev) => prev.filter((p) => p.id !== producto.id));
-              setSeleccionIds((prev) => {
-                const next = new Set(prev);
-                next.delete(producto.id);
-                return next;
-              });
-            } catch {
-              Alert.alert('Error', 'No se pudo eliminar el producto');
-            }
-          },
-        },
-      ],
+      { textoAceptar: 'Eliminar', destructivo: true },
+      async () => {
+        try {
+          await productosServicio.eliminar(producto.id);
+          setProductos((prev) => prev.filter((p) => p.id !== producto.id));
+          setSeleccionIds((prev) => {
+            const next = new Set(prev);
+            next.delete(producto.id);
+            return next;
+          });
+        } catch {
+          mostrarAlerta('Error', 'No se pudo eliminar el producto');
+        }
+      },
     );
   }, []);
 
@@ -324,7 +319,7 @@ const CatalogoProductos: React.FC<Props> = ({ navigation }) => {
 
   const irAPedidoConCarrito = useCallback(() => {
     if (lineas.length === 0) {
-      Alert.alert('Carrito vacío', 'Agregá productos o servicios al carrito antes de continuar.');
+      mostrarAlerta('Carrito vacío', 'Agregá productos o servicios al carrito antes de continuar.');
       return;
     }
     marcarTransferenciaAlPedido();
@@ -340,17 +335,35 @@ const CatalogoProductos: React.FC<Props> = ({ navigation }) => {
     );
   }, [lineas.length, marcarTransferenciaAlPedido, navigation]);
 
-  const confirmarVaciarCarrito = () => {
-    Alert.alert('Vaciar carrito', '¿Quitar todos los productos del carrito?', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Vaciar', style: 'destructive', onPress: limpiarCarrito },
-    ]);
-  };
+  const confirmarVaciarCarrito = useCallback(() => {
+    confirmarYEntonces(
+      'Vaciar carrito',
+      '¿Quitar todos los productos del carrito?',
+      { textoAceptar: 'Vaciar', destructivo: true },
+      () => {
+        limpiarCarrito();
+      },
+    );
+  }, [limpiarCarrito]);
+
+  const mostrarBarraCarrito = unidadesEnCarrito > 0;
+  const FAB_H = 58;
+  const FAB_GAP = 12;
+  const offsetFab = mostrarBarraCarrito ? 108 : 24;
+  const fabArmarBottom = offsetFab + FAB_H + FAB_GAP;
+
+  const paddingBottomLista = useMemo(() => {
+    const off = mostrarBarraCarrito ? 108 : 24;
+    const armarB = off + FAB_H + FAB_GAP;
+    let base = 100;
+    if (mostrarBarraCarrito) base = 180;
+    if (!modoArmarPedido) return Math.max(base, armarB + FAB_H + 28);
+    if (seleccionIds.size > 0) return Math.max(base, off + FAB_H + 72 + 56);
+    return Math.max(base, off + FAB_H + 28);
+  }, [mostrarBarraCarrito, modoArmarPedido, seleccionIds.size]);
 
   if (cargando && productos.length === 0) return <CargandoSpinner />;
   if (error) return <ErrorMensaje mensaje={error} onReintentar={cargar} />;
-
-  const mostrarBarraCarrito = unidadesEnCarrito > 0;
 
   return (
     <SafeAreaView style={estilosComunes.contenedor} edges={['bottom']}>
@@ -369,34 +382,10 @@ const CatalogoProductos: React.FC<Props> = ({ navigation }) => {
           />
         </View>
 
-        <TouchableOpacity
-          style={[estilos.togglePedido, modoArmarPedido && estilos.togglePedidoActivo]}
-          onPress={() => {
-            setModoArmarPedido((v) => !v);
-            setSeleccionIds(new Set());
-          }}
-          activeOpacity={0.85}
-        >
-          <Ionicons name="cart-outline" size={18} color={modoArmarPedido ? COLORES.primario : COLORES.textoSecundario} />
-          <Text style={[estilos.togglePedidoTexto, modoArmarPedido && estilos.togglePedidoTextoActivo]}>
-            Armar pedido
-          </Text>
-        </TouchableOpacity>
-
         {modoArmarPedido && (
-          <View style={estilos.filaModoPedido}>
-            <TouchableOpacity
-              style={[estilos.btnSecundario, seleccionIds.size === 0 && estilos.btnSecundarioDisabled]}
-              onPress={agregarSeleccionadosAlCarrito}
-              disabled={seleccionIds.size === 0}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="add-circle-outline" size={18} color={seleccionIds.size === 0 ? COLORES.textoDeshabilitado : COLORES.primario} />
-              <Text style={[estilos.btnSecundarioTxt, seleccionIds.size === 0 && estilos.btnSecundarioTxtDisabled]}>
-                Agregar seleccionados ({seleccionIds.size})
-              </Text>
-            </TouchableOpacity>
-          </View>
+          <Text style={estilos.hintModoPedido}>
+            Tocá las tarjetas para marcarlas. Revisá la selección con el botón inferior antes de sumarla al carrito.
+          </Text>
         )}
 
         {mostrarBarraCarrito && (
@@ -456,8 +445,7 @@ const CatalogoProductos: React.FC<Props> = ({ navigation }) => {
         contentContainerStyle={[
           estilos.listaGrid,
           productosFiltrados.length === 0 && estilos.listaGridVacia,
-          mostrarBarraCarrito && estilos.listaConBarraInferior,
-          modoArmarPedido && estilos.listaConBarraInferior,
+          { paddingBottom: paddingBottomLista },
         ]}
         refreshControl={
           <RefreshControl refreshing={cargando} onRefresh={cargar} tintColor={COLORES.primario} />
@@ -477,7 +465,7 @@ const CatalogoProductos: React.FC<Props> = ({ navigation }) => {
             </Text>
           </View>
         }
-        extraData={anchoVentana}
+        extraData={`${anchoVentana}-${modoArmarPedido}-${seleccionIds.size}`}
       />
 
       {mostrarBarraCarrito && (
@@ -490,11 +478,52 @@ const CatalogoProductos: React.FC<Props> = ({ navigation }) => {
         </View>
       )}
 
+      {modoArmarPedido && seleccionIds.size > 0 && (
+        <View style={[estilos.pieRevisarSeleccion, { bottom: offsetFab + FAB_H + 12 }]} pointerEvents="box-none">
+          <TouchableOpacity
+            style={estilos.pieRevisarBtn}
+            onPress={() =>
+              navigation.navigate('AgregarSeleccionCatalogo', { productoIds: Array.from(seleccionIds) })
+            }
+            activeOpacity={0.88}
+            accessibilityRole="button"
+            accessibilityLabel={`Revisar ${seleccionIds.size} productos seleccionados`}
+          >
+            <Ionicons name="layers-outline" size={22} color={COLORES.blanco} />
+            <Text style={estilos.pieRevisarTxt}>Revisar {seleccionIds.size} seleccionados</Text>
+            <Ionicons name="chevron-forward" size={20} color={COLORES.blanco} />
+          </TouchableOpacity>
+        </View>
+      )}
+
       {!modoArmarPedido && (
+        <>
+          <FAB
+            icono="cart-outline"
+            onPress={() => {
+              setModoArmarPedido(true);
+              setSeleccionIds(new Set());
+            }}
+            estilo={{ bottom: fabArmarBottom }}
+          />
+          <FAB
+            icono="add"
+            onPress={() => navigation.navigate('FormProducto', {})}
+            estilo={{ bottom: offsetFab }}
+          />
+        </>
+      )}
+
+      {modoArmarPedido && (
         <FAB
-          icono="add"
-          onPress={() => navigation.navigate('FormProducto', {})}
-          estilo={mostrarBarraCarrito ? { bottom: 108 } : undefined}
+          icono="close"
+          color={COLORES.textoSecundario}
+          colorIcono={COLORES.blanco}
+          onPress={() => {
+            setModoArmarPedido(false);
+            setSeleccionIds(new Set());
+          }}
+          estilo={{ bottom: offsetFab }}
         />
       )}
     </SafeAreaView>
@@ -528,42 +557,40 @@ const estilos = StyleSheet.create({
     fontSize: FUENTE.tamanoBase,
     color: COLORES.texto,
   },
-  togglePedido: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: ESPACIADO.sm,
-    paddingVertical: ESPACIADO.sm,
-    borderRadius: RADIO.lg,
-    borderWidth: 1,
-    borderColor: COLORES.borde,
-    backgroundColor: COLORES.tarjeta,
-  },
-  togglePedidoActivo: {
-    borderColor: COLORES.primario,
-    backgroundColor: COLORES.primarioClaro,
-  },
-  togglePedidoTexto: {
-    fontSize: FUENTE.tamanoPequeno,
-    fontWeight: FUENTE.pesoSemibold,
+  hintModoPedido: {
+    fontSize: FUENTE.tamanoXs,
     color: COLORES.textoSecundario,
+    lineHeight: 17,
+    marginBottom: ESPACIADO.xs,
   },
-  togglePedidoTextoActivo: { color: COLORES.primario },
-  filaModoPedido: { marginTop: ESPACIADO.sm },
-  btnSecundario: {
+  pieRevisarSeleccion: {
+    position: 'absolute',
+    left: ESPACIADO.md,
+    right: ESPACIADO.md,
+    zIndex: 30,
+  },
+  pieRevisarBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: ESPACIADO.sm,
-    paddingVertical: ESPACIADO.sm,
-    borderRadius: RADIO.md,
-    backgroundColor: COLORES.tarjeta,
-    borderWidth: 1,
-    borderColor: COLORES.borde,
+    backgroundColor: COLORES.primario,
+    paddingVertical: ESPACIADO.md,
+    paddingHorizontal: ESPACIADO.md,
+    borderRadius: RADIO.lg,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.14,
+    shadowRadius: 6,
+    elevation: 8,
   },
-  btnSecundarioDisabled: { opacity: 0.55 },
-  btnSecundarioTxt: { fontSize: FUENTE.tamanoPequeno, fontWeight: FUENTE.pesoSemibold, color: COLORES.primario },
-  btnSecundarioTxtDisabled: { color: COLORES.textoDeshabilitado },
+  pieRevisarTxt: {
+    flexShrink: 1,
+    textAlign: 'center',
+    color: COLORES.blanco,
+    fontSize: FUENTE.tamanoBase,
+    fontWeight: FUENTE.pesoBold,
+  },
   resumenCarrito: {
     marginTop: ESPACIADO.sm,
     padding: ESPACIADO.sm,
@@ -631,7 +658,6 @@ const estilos = StyleSheet.create({
 
   listaGrid: { padding: PADDING_GRID, paddingBottom: 100 },
   listaGridVacia: { flex: 1 },
-  listaConBarraInferior: { paddingBottom: 200 },
 
   filaGrid: {
     flexDirection: 'row',

@@ -3,7 +3,6 @@ import {
   View,
   Text,
   ScrollView,
-  Alert,
   TouchableOpacity,
   Modal,
   FlatList,
@@ -29,6 +28,7 @@ import SelectorToggle from '../../componentes/SelectorToggle';
 import { COLORES } from '../../estilos/colores';
 import { FUENTE, ESPACIADO, RADIO, estilosComunes, SCROLL_FORM_PADDING_BOTTOM } from '../../estilos/tema';
 import { parsearNumero, formatearMoneda } from '../../utilidades/formato';
+import { mostrarAlerta } from '../../utilidades/alertaPlataforma';
 
 type Props = NativeStackScreenProps<PedidosStackParamList, 'CrearPedido'>;
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -326,23 +326,23 @@ const CrearPedido: React.FC<Props> = ({ navigation, route }) => {
   const validar = (): boolean => {
     if (modoCreacion === 'compra') {
       if (!personaSeleccionada) {
-        Alert.alert('Falta el proveedor', 'Seleccioná a quién le comprás.');
+        mostrarAlerta('Falta el proveedor', 'Seleccioná a quién le comprás.');
         return false;
       }
     } else if (modoCreacion === 'venta_cliente') {
       if (!personaSeleccionada) {
-        Alert.alert('Falta el cliente', 'Seleccioná el cliente de esta venta.');
+        mostrarAlerta('Falta el cliente', 'Seleccioná el cliente de esta venta.');
         return false;
       }
     } else if (!proveedorSeleccionado) {
-      Alert.alert('Falta el proveedor', 'En «Venta por proveedor» tenés que elegir el proveedor de costo.');
+      mostrarAlerta('Falta el proveedor', 'En «Venta por proveedor» tenés que elegir el proveedor de costo.');
       return false;
     }
     for (const item of items) {
-      if (!item.nombre.trim()) { Alert.alert('Nombre requerido', 'Todos los ítems deben tener un nombre'); return false; }
-      if (parsearNumero(item.cantidad) <= 0) { Alert.alert('Cantidad inválida', 'La cantidad debe ser mayor a 0'); return false; }
+      if (!item.nombre.trim()) { mostrarAlerta('Nombre requerido', 'Todos los ítems deben tener un nombre'); return false; }
+      if (parsearNumero(item.cantidad) <= 0) { mostrarAlerta('Cantidad inválida', 'La cantidad debe ser mayor a 0'); return false; }
       if (parsearNumero(item.precioCompra) <= 0 || parsearNumero(item.precioVenta) <= 0) {
-        Alert.alert('Precios requeridos', `Ingresá precio costo y precio venta en "${item.nombre || 'ítem'}"`);
+        mostrarAlerta('Precios requeridos', `Ingresá precio costo y precio venta en "${item.nombre || 'ítem'}"`);
         return false;
       }
     }
@@ -374,7 +374,7 @@ const CrearPedido: React.FC<Props> = ({ navigation, route }) => {
       });
       navigation.replace('DetallePedido', { pedidoId: pedido.id });
     } catch (e: unknown) {
-      Alert.alert('Error al crear pedido', e instanceof Error ? e.message : 'Intentá nuevamente');
+      mostrarAlerta('Error al crear pedido', e instanceof Error ? e.message : 'Intentá nuevamente');
     } finally {
       setGuardando(false);
     }

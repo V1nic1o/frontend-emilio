@@ -3,7 +3,6 @@ import {
   View,
   Text,
   ScrollView,
-  Alert,
   TouchableOpacity,
   Modal,
   ActivityIndicator,
@@ -32,6 +31,7 @@ import { COLORES } from '../../estilos/colores';
 import { FUENTE, ESPACIADO, RADIO, estilosComunes, SCROLL_FORM_PADDING_BOTTOM } from '../../estilos/tema';
 import { formatearMoneda, formatearFecha, parsearNumero, etiquetaPedido } from '../../utilidades/formato';
 import { generarYCompartirPDF, TipoPDF } from '../../utilidades/pdf';
+import { mostrarAlerta, confirmarAsync } from '../../utilidades/alertaPlataforma';
 import { ItemPedido, Producto, TipoItem, TipoPagoProveedor } from '../../tipos';
 
 type Props = NativeStackScreenProps<PedidosStackParamList, 'DetallePedido'>;
@@ -130,7 +130,7 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
     if (imp !== '') {
       const impNum = parsearNumero(imp);
       if (Number.isNaN(impNum) || impNum < 0 || impNum > 100) {
-        Alert.alert('Impuesto inválido', 'Ingresá un porcentaje entre 0 y 100, o dejá vacío para quitar el impuesto.');
+        mostrarAlerta('Impuesto inválido', 'Ingresá un porcentaje entre 0 y 100, o dejá vacío para quitar el impuesto.');
         return;
       }
       impuestoPayload = impNum;
@@ -143,7 +143,7 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
       });
       setModalMeta(false);
     } catch (e: unknown) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo guardar');
+      mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo guardar');
     } finally {
       setGuardandoMeta(false);
     }
@@ -158,18 +158,16 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
     const saldoPendiente = r.saldoPendiente ?? Math.max(0, tot - totalPag);
     const monto = parsearNumero(montoPago);
     if (monto <= 0) {
-      Alert.alert('Monto inválido', 'El monto debe ser mayor a 0');
+      mostrarAlerta('Monto inválido', 'El monto debe ser mayor a 0');
       return;
     }
     if (monto > saldoPendiente) {
-      Alert.alert(
+      const ok = await confirmarAsync(
         'Monto excede el saldo',
-        `El máximo a pagar es ${formatearMoneda(saldoPendiente)}. ¿Querés pagar el saldo completo?`,
-        [
-          { text: 'Cancelar', style: 'cancel' },
-          { text: 'Pagar saldo completo', onPress: () => setMontoPago(String(saldoPendiente)) },
-        ],
+        `El máximo a pagar es ${formatearMoneda(saldoPendiente)}.\n\n¿Rellenar el campo con ese monto?`,
+        { textoAceptar: 'Usar saldo completo' },
       );
+      if (ok) setMontoPago(String(saldoPendiente));
       return;
     }
     setGuardandoPago(true);
@@ -178,7 +176,7 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
       setModalPago(false);
       setMontoPago('');
     } catch (e: unknown) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo registrar el pago');
+      mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo registrar el pago');
     } finally {
       setGuardandoPago(false);
     }
@@ -194,48 +192,59 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
     try {
       await generarYCompartirPDF(pedido, tipo, perfilEmpresa);
     } catch (e: unknown) {
-      Alert.alert('Error al generar PDF', e instanceof Error ? e.message : 'No se pudo generar el PDF');
+      mostrarAlerta('Error al generar PDF', e instanceof Error ? e.message : 'No se pudo generar el PDF');
     } finally {
       setGenerandoPDF(false);
     }
   };
 
   const handleEliminarPago = (pagoId: number, monto: number) => {
-    Alert.alert('Eliminar pago', `¿Eliminar el pago de ${formatearMoneda(monto)}? Esta acción no se puede deshacer.`, [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Eliminar', style: 'destructive', onPress: async () => {
-        try { await eliminarPago(pagoId); }
-        catch (e: unknown) { Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo eliminar'); }
-      }},
-    ]);
+    void (async () => {
+      const ok = await confirmarAsync(
+        'Eliminar pago',
+        `¿Eliminar el pago de ${formatearMoneda(monto)}? Esta acción no se puede deshacer.`,
+        { textoAceptar: 'Eliminar', destructivo: true },
+      );
+      if (!ok) return;
+      try {
+        await eliminarPago(pagoId);
+      } catch (e: unknown) {
+        mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo eliminar');
+      }
+    })();
   };
 
   const handleEliminarPagoProveedor = (pagoId: number, monto: number, tipoMov?: TipoPagoProveedor) => {
     const esCobro = tipoMov === 'cobro';
-    Alert.alert(
-      esCobro ? 'Eliminar cobro del proveedor' : 'Eliminar pago al proveedor',
-      `¿Eliminar el ${esCobro ? 'cobro' : 'pago'} de ${formatearMoneda(monto)}?`,
-      [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Eliminar', style: 'destructive', onPress: async () => {
-        try { await eliminarPagoProveedor(pagoId); }
-        catch (e: unknown) { Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo eliminar'); }
-      }},
-    ]);
+    void (async () => {
+      const ok = await confirmarAsync(
+        esCobro ? 'Eliminar cobro del proveedor' : 'Eliminar pago al proveedor',
+        `¿Eliminar el ${esCobro ? 'cobro' : 'pago'} de ${formatearMoneda(monto)}?`,
+        { textoAceptar: 'Eliminar', destructivo: true },
+      );
+      if (!ok) return;
+      try {
+        await eliminarPagoProveedor(pagoId);
+      } catch (e: unknown) {
+        mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo eliminar');
+      }
+    })();
   };
 
   const handleEliminar = () => {
-    Alert.alert('Eliminar pedido', '¿Estás seguro? Esta acción no se puede deshacer.', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Eliminar', style: 'destructive', onPress: async () => {
-        try {
-            await pedidosServicio.eliminar(pedidoId);
-            navigation.goBack();
-          } catch (e: unknown) {
-            Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo eliminar');
-          }
-      }},
-    ]);
+    void (async () => {
+      const ok = await confirmarAsync('Eliminar pedido', '¿Estás seguro? Esta acción no se puede deshacer.', {
+        textoAceptar: 'Eliminar',
+        destructivo: true,
+      });
+      if (!ok) return;
+      try {
+        await pedidosServicio.eliminar(pedidoId);
+        navigation.goBack();
+      } catch (e: unknown) {
+        mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo eliminar');
+      }
+    })();
   };
 
   // ─── Item management ──────────────────────────────────────────────────────
@@ -245,13 +254,18 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
   const abrirEditarItem = (item: ItemPedido) => { setItemEditable(itemDesdeExistente(item)); setModalItem(true); };
 
   const handleEliminarItem = (item: ItemPedido) => {
-    Alert.alert('Eliminar ítem', `¿Eliminar "${item.nombre}"?`, [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Eliminar', style: 'destructive', onPress: async () => {
-        try { await eliminarItem(item.id); }
-        catch (e: unknown) { Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo eliminar'); }
-      }},
-    ]);
+    void (async () => {
+      const ok = await confirmarAsync('Eliminar ítem', `¿Eliminar "${item.nombre}"?`, {
+        textoAceptar: 'Eliminar',
+        destructivo: true,
+      });
+      if (!ok) return;
+      try {
+        await eliminarItem(item.id);
+      } catch (e: unknown) {
+        mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo eliminar');
+      }
+    })();
   };
 
   const seleccionarProductoCatalogo = (producto: Producto) => {
@@ -267,10 +281,16 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
   };
 
   const handleGuardarItem = async () => {
-    if (!itemEditable.nombre.trim()) { Alert.alert('Nombre requerido', 'Ingresá el nombre del ítem'); return; }
-    if (parsearNumero(itemEditable.cantidad) <= 0) { Alert.alert('Cantidad inválida', 'La cantidad debe ser mayor a 0'); return; }
+    if (!itemEditable.nombre.trim()) {
+      mostrarAlerta('Nombre requerido', 'Ingresá el nombre del ítem');
+      return;
+    }
+    if (parsearNumero(itemEditable.cantidad) <= 0) {
+      mostrarAlerta('Cantidad inválida', 'La cantidad debe ser mayor a 0');
+      return;
+    }
     if (parsearNumero(itemEditable.precioCompra) <= 0 || parsearNumero(itemEditable.precioVenta) <= 0) {
-      Alert.alert('Precios requeridos', 'Ingresá precio costo y precio venta');
+      mostrarAlerta('Precios requeridos', 'Ingresá precio costo y precio venta');
       return;
     }
     setGuardandoItem(true);
@@ -293,7 +313,7 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
       }
       setModalItem(false);
     } catch (e: unknown) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo guardar el ítem');
+      mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo guardar el ítem');
     } finally {
       setGuardandoItem(false);
     }
@@ -335,14 +355,16 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
       pedido.resumen.saldoProveedor ?? Math.max(0, totalCostoProv - totalPagProv);
     const monto = parsearNumero(montoPagoProveedor);
     if (monto <= 0) {
-      Alert.alert('Monto inválido', 'El monto debe ser mayor a 0');
+      mostrarAlerta('Monto inválido', 'El monto debe ser mayor a 0');
       return;
     }
     if (tipoMovimientoProveedor === 'pago' && monto > saldoProv) {
-      Alert.alert('Monto excede el saldo', `El máximo a pagar es ${formatearMoneda(saldoProv)}.`, [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Pagar saldo completo', onPress: () => setMontoPagoProveedor(String(saldoProv)) },
-      ]);
+      const ok = await confirmarAsync(
+        'Monto excede el saldo',
+        `El máximo a pagar es ${formatearMoneda(saldoProv)}.\n\n¿Rellenar el campo con ese monto?`,
+        { textoAceptar: 'Usar saldo completo' },
+      );
+      if (ok) setMontoPagoProveedor(String(saldoProv));
       return;
     }
     setGuardandoPagoProveedor(true);
@@ -350,7 +372,7 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
       await agregarPagoProveedor({ monto, tipo: tipoMovimientoProveedor });
       cerrarModalProveedor();
     } catch (e: unknown) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo registrar el movimiento');
+      mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo registrar el movimiento');
     } finally {
       setGuardandoPagoProveedor(false);
     }

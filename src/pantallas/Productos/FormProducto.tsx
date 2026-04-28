@@ -4,7 +4,6 @@ import {
   Text,
   ScrollView,
   StyleSheet,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
@@ -22,6 +21,7 @@ import SelectorToggle from '../../componentes/SelectorToggle';
 import { COLORES } from '../../estilos/colores';
 import { FUENTE, ESPACIADO, RADIO, estilosComunes, SCROLL_FORM_PADDING_BOTTOM } from '../../estilos/tema';
 import { parsearNumero } from '../../utilidades/formato';
+import { mostrarAlerta } from '../../utilidades/alertaPlataforma';
 
 type Props = NativeStackScreenProps<CatalogoStackParamList, 'FormProducto'>;
 
@@ -89,7 +89,7 @@ const FormProducto: React.FC<Props> = ({ navigation, route }) => {
     } catch (error) {
       const mensaje =
         error instanceof Error ? error.message : 'No se pudo guardar el producto';
-      Alert.alert('Error', mensaje);
+      mostrarAlerta('Error', mensaje);
     } finally {
       setGuardando(false);
     }

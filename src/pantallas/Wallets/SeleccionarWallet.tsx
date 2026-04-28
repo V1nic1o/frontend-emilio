@@ -6,7 +6,6 @@ import {
   FlatList,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -21,6 +20,7 @@ import { COLORES } from '../../estilos/colores';
 import { PERSONAL } from '../../estilos/personalTema';
 import { FUENTE, ESPACIADO, RADIO } from '../../estilos/tema';
 import { esWalletPersonal, tipoWalletEtiqueta } from '../../utilidades/wallet';
+import { confirmarAsync, mostrarAlerta } from '../../utilidades/alertaPlataforma';
 
 type Props = NativeStackScreenProps<WalletStackParamList, 'SeleccionarWallet'>;
 
@@ -49,27 +49,22 @@ const SeleccionarWallet: React.FC<Props> = ({ navigation }) => {
   );
 
   const handleEliminar = (wallet: Wallet) => {
-    Alert.alert(
-      `Eliminar "${wallet.nombre}"`,
-      wallet.tipo === 'personal'
-        ? 'Se eliminarán ingresos, gastos, deudas y metas de ahorro de este espacio. Esta acción no se puede deshacer.'
-        : 'Se eliminarán personas, pedidos, catálogo y gastos de este espacio. Esta acción no se puede deshacer.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await walletsServicio.eliminar(wallet.id);
-              await recargarWallets();
-            } catch {
-              Alert.alert('Error', 'No se pudo eliminar el workspace');
-            }
-          },
-        },
-      ]
-    );
+    void (async () => {
+      const ok = await confirmarAsync(
+        `Eliminar "${wallet.nombre}"`,
+        wallet.tipo === 'personal'
+          ? 'Se eliminarán ingresos, gastos, deudas y metas de ahorro de este espacio. Esta acción no se puede deshacer.'
+          : 'Se eliminarán personas, pedidos, catálogo y gastos de este espacio. Esta acción no se puede deshacer.',
+        { textoAceptar: 'Eliminar', destructivo: true },
+      );
+      if (!ok) return;
+      try {
+        await walletsServicio.eliminar(wallet.id);
+        await recargarWallets();
+      } catch {
+        mostrarAlerta('Error', 'No se pudo eliminar el workspace');
+      }
+    })();
   };
 
   const filas = useMemo(() => {

@@ -1,5 +1,5 @@
 import React, { useEffect, useCallback } from 'react';
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, RefreshControl, Alert } from 'react-native';
+import { View, Text, FlatList, StyleSheet, TouchableOpacity, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,6 +13,7 @@ import { COLORES } from '../../../estilos/colores';
 import { PERSONAL } from '../../../estilos/personalTema';
 import { FUENTE, ESPACIADO, RADIO, estilosComunes } from '../../../estilos/tema';
 import { formatearMoneda, formatearFecha } from '../../../utilidades/formato';
+import { mostrarAlerta, confirmarAsync } from '../../../utilidades/alertaPlataforma';
 
 type Props = NativeStackScreenProps<IngresosPersonalStackParamList, 'ListaIngresosPersonales'>;
 
@@ -26,20 +27,18 @@ const ListaIngresosPersonales: React.FC<Props> = ({ navigation }) => {
 
   const onEliminar = useCallback(
     (item: IngresoPersonal) => {
-      Alert.alert('Eliminar', `¿Quitar «${item.descripcion}»?`, [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await eliminar(item.id);
-            } catch (e: unknown) {
-              Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo eliminar');
-            }
-          },
-        },
-      ]);
+      void (async () => {
+        const ok = await confirmarAsync('Eliminar', `¿Quitar «${item.descripcion}»?`, {
+          textoAceptar: 'Eliminar',
+          destructivo: true,
+        });
+        if (!ok) return;
+        try {
+          await eliminar(item.id);
+        } catch (e: unknown) {
+          mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo eliminar');
+        }
+      })();
     },
     [eliminar],
   );

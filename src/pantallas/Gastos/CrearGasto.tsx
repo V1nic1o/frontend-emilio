@@ -4,7 +4,6 @@ import {
   Text,
   ScrollView,
   StyleSheet,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
@@ -21,6 +20,7 @@ import { PERSONAL } from '../../estilos/personalTema';
 import { FUENTE, ESPACIADO, RADIO, estilosComunes, SCROLL_FORM_PADDING_BOTTOM } from '../../estilos/tema';
 import { useWallet } from '../../contexto/WalletContext';
 import { parsearNumero } from '../../utilidades/formato';
+import { mostrarAlerta } from '../../utilidades/alertaPlataforma';
 
 type Props = NativeStackScreenProps<GastosStackParamList, 'CrearGasto'>;
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -72,7 +72,7 @@ const CrearGasto: React.FC<Props> = ({ navigation }) => {
       });
       navigation.goBack();
     } catch (e: unknown) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo crear el gasto');
+      mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo crear el gasto');
     } finally {
       setGuardando(false);
     }

@@ -6,7 +6,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   RefreshControl,
-  Alert,
   Modal,
   TextInput,
   KeyboardAvoidingView,
@@ -26,6 +25,7 @@ import { COLORES } from '../../../estilos/colores';
 import { PERSONAL } from '../../../estilos/personalTema';
 import { FUENTE, ESPACIADO, RADIO, estilosComunes } from '../../../estilos/tema';
 import { formatearMoneda, formatearFecha, parsearNumero } from '../../../utilidades/formato';
+import { mostrarAlerta, confirmarAsync } from '../../../utilidades/alertaPlataforma';
 
 type Props = NativeStackScreenProps<DeudasPersonalStackParamList, 'ListaDeudasPersonales'>;
 
@@ -44,7 +44,7 @@ const ListaDeudasPersonales: React.FC<Props> = ({ navigation }) => {
     if (!modal) return;
     const extra = parsearNumero(pagoTxt);
     if (extra <= 0) {
-      Alert.alert('Monto inválido', 'Ingresá un monto mayor a 0');
+      mostrarAlerta('Monto inválido', 'Ingresá un monto mayor a 0');
       return;
     }
     const nuevoPagado = Math.min(modal.montoOriginal, modal.montoPagado + extra);
@@ -55,27 +55,25 @@ const ListaDeudasPersonales: React.FC<Props> = ({ navigation }) => {
       setPagoTxt('');
       await cargar();
     } catch (e: unknown) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo registrar');
+      mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo registrar');
     } finally {
       setGuardandoPago(false);
     }
   };
 
   const onEliminar = (d: DeudaPersonal) => {
-    Alert.alert('Eliminar', `¿Eliminar la deuda «${d.titulo}»?`, [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Eliminar',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await eliminar(d.id);
-          } catch (e: unknown) {
-            Alert.alert('Error', e instanceof Error ? e.message : '');
-          }
-        },
-      },
-    ]);
+    void (async () => {
+      const ok = await confirmarAsync('Eliminar', `¿Eliminar la deuda «${d.titulo}»?`, {
+        textoAceptar: 'Eliminar',
+        destructivo: true,
+      });
+      if (!ok) return;
+      try {
+        await eliminar(d.id);
+      } catch (e: unknown) {
+        mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo eliminar');
+      }
+    })();
   };
 
   if (cargando && deudas.length === 0) return <CargandoSpinner />;

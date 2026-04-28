@@ -6,7 +6,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   RefreshControl,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -22,6 +21,7 @@ import { PERSONAL } from '../../estilos/personalTema';
 import { FUENTE, ESPACIADO, RADIO, estilosComunes } from '../../estilos/tema';
 import { useWallet } from '../../contexto/WalletContext';
 import { formatearMoneda, formatearFecha, esMesActual } from '../../utilidades/formato';
+import { confirmarAsync, mostrarAlerta } from '../../utilidades/alertaPlataforma';
 
 type Props = NativeStackScreenProps<GastosStackParamList, 'ListaGastos'>;
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -58,24 +58,20 @@ const ListaGastos: React.FC<Props> = ({ navigation }) => {
 
   const handleEliminar = useCallback(
     (gasto: Gasto) => {
-      Alert.alert(
-        'Eliminar gasto',
-        `¿Eliminar "${gasto.descripcion}"?`,
-        [
-          { text: 'Cancelar', style: 'cancel' },
-          {
-            text: 'Eliminar',
-            style: 'destructive',
-            onPress: async () => {
-              try { await eliminar(gasto.id); } catch (e: unknown) {
-                Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo eliminar');
-              }
-            },
-          },
-        ]
-      );
+      void (async () => {
+        const ok = await confirmarAsync('Eliminar gasto', `¿Eliminar "${gasto.descripcion}"?`, {
+          textoAceptar: 'Eliminar',
+          destructivo: true,
+        });
+        if (!ok) return;
+        try {
+          await eliminar(gasto.id);
+        } catch (e: unknown) {
+          mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo eliminar');
+        }
+      })();
     },
-    [eliminar]
+    [eliminar],
   );
 
   const secciones: Seccion[] = useMemo(() => {

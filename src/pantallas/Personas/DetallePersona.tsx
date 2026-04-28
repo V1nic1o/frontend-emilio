@@ -11,7 +11,6 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -31,6 +30,7 @@ import BotonPrimario from '../../componentes/BotonPrimario';
 import { COLORES } from '../../estilos/colores';
 import { FUENTE, ESPACIADO, RADIO, estilosComunes, SCROLL_FORM_PADDING_BOTTOM } from '../../estilos/tema';
 import { formatearMoneda, formatearFecha, etiquetaPedido, subtituloNumeroPedido } from '../../utilidades/formato';
+import { mostrarAlerta, confirmarAsync } from '../../utilidades/alertaPlataforma';
 
 type Props = NativeStackScreenProps<PersonasStackParamList, 'DetallePersona'>;
 
@@ -94,7 +94,7 @@ const DetallePersona: React.FC<Props> = ({ navigation, route }) => {
 
   const handleGuardarEdicion = async () => {
     if (!nombreEditable.trim()) {
-      Alert.alert('Nombre requerido', 'El nombre no puede estar vacío');
+      mostrarAlerta('Nombre requerido', 'El nombre no puede estar vacío');
       return;
     }
     setGuardandoEdicion(true);
@@ -110,32 +110,27 @@ const DetallePersona: React.FC<Props> = ({ navigation, route }) => {
       setModalEditar(false);
       cargarPersona();
     } catch (e: unknown) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo actualizar');
+      mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo actualizar');
     } finally {
       setGuardandoEdicion(false);
     }
   };
 
   const handleEliminar = () => {
-    Alert.alert(
-      'Eliminar persona',
-      `¿Eliminar a "${persona?.nombre}"? Se eliminarán también todos sus pedidos. Esta acción no se puede deshacer.`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await eliminar(personaId);
-              navigation.goBack();
-            } catch (e: unknown) {
-              Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo eliminar');
-            }
-          },
-        },
-      ]
-    );
+    void (async () => {
+      const ok = await confirmarAsync(
+        'Eliminar persona',
+        `¿Eliminar a "${persona?.nombre}"? Se eliminarán también todos sus pedidos. Esta acción no se puede deshacer.`,
+        { textoAceptar: 'Eliminar', destructivo: true },
+      );
+      if (!ok) return;
+      try {
+        await eliminar(personaId);
+        navigation.goBack();
+      } catch (e: unknown) {
+        mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo eliminar');
+      }
+    })();
   };
 
   // Pedidos propios de esta persona

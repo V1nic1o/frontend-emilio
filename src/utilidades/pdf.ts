@@ -12,6 +12,135 @@ const MAX_LOGO_BASE64_CHARS = 200_000;
 
 const esperar = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
+/**
+ * En web, `Print.printToFileAsync({ html })` no genera PDF desde HTML: solo llama a `window.print()`
+ * sobre la app visible (captura de pantalla). Aquí imprimimos el HTML en un iframe oculto.
+ */
+async function imprimirHtmlEnWeb(html: string): Promise<void> {
+  if (typeof document === 'undefined') {
+    throw new Error('La generación de PDF desde HTML no está disponible en este entorno.');
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    let iframe: HTMLIFrameElement | null = document.createElement('iframe');
+    iframe.setAttribute('aria-hidden', 'true');
+    iframe.style.position = 'fixed';
+    iframe.style.left = '-99999px';
+    iframe.style.top = '0';
+    iframe.style.width = '1px';
+    iframe.style.height = '1px';
+    iframe.style.border = 'none';
+    document.body.appendChild(iframe);
+
+    const win = iframe.contentWindow;
+    const doc = iframe.contentDocument;
+    if (!win || !doc) {
+      document.body.removeChild(iframe);
+      reject(new Error('No se pudo preparar la ventana de impresión.'));
+      return;
+    }
+
+    const ventanaImpr = win;
+
+    let uiListo = false;
+    const desbloquearUi = () => {
+      if (uiListo) return;
+      uiListo = true;
+      resolve();
+    };
+
+    let limpiado = false;
+    let fallbackMs: ReturnType<typeof setTimeout> | undefined;
+    let unblockMs: ReturnType<typeof setTimeout> | undefined;
+
+    const quitarIframe = () => {
+      if (iframe?.parentNode) {
+        iframe.parentNode.removeChild(iframe);
+      }
+      iframe = null;
+    };
+
+    function onAfterPrint() {
+      if (limpiado) return;
+      limpiado = true;
+      try {
+        ventanaImpr.removeEventListener('afterprint', onAfterPrint);
+      } catch {
+        /* — */
+      }
+      try {
+        window.removeEventListener('afterprint', onAfterPrint);
+      } catch {
+        /* — */
+      }
+      if (fallbackMs !== undefined) clearTimeout(fallbackMs);
+      if (unblockMs !== undefined) clearTimeout(unblockMs);
+      quitarIframe();
+      if (!uiListo) desbloquearUi();
+    }
+
+    try {
+      doc.open();
+      doc.write(html);
+      doc.close();
+    } catch (e) {
+      try {
+        ventanaImpr.removeEventListener('afterprint', onAfterPrint);
+      } catch {
+        /* — */
+      }
+      try {
+        window.removeEventListener('afterprint', onAfterPrint);
+      } catch {
+        /* — */
+      }
+      quitarIframe();
+      reject(e instanceof Error ? e : new Error('No se pudo escribir el documento para imprimir.'));
+      return;
+    }
+
+    try {
+      ventanaImpr.addEventListener('afterprint', onAfterPrint);
+    } catch {
+      /* — */
+    }
+    try {
+      window.addEventListener('afterprint', onAfterPrint);
+    } catch {
+      /* — */
+    }
+
+    fallbackMs = setTimeout(onAfterPrint, 90_000);
+
+    const disparar = () => {
+      try {
+        ventanaImpr.focus();
+        ventanaImpr.print();
+      } catch (e) {
+        try {
+          ventanaImpr.removeEventListener('afterprint', onAfterPrint);
+        } catch {
+          /* — */
+        }
+        try {
+          window.removeEventListener('afterprint', onAfterPrint);
+        } catch {
+          /* — */
+        }
+        if (fallbackMs !== undefined) clearTimeout(fallbackMs);
+        if (unblockMs !== undefined) clearTimeout(unblockMs);
+        quitarIframe();
+        reject(e instanceof Error ? e : new Error('No se pudo abrir el diálogo de impresión.'));
+        return;
+      }
+      // `afterprint` no siempre se dispara (p. ej. al cancelar); no dejar el botón «PDF» cargando.
+      unblockMs = setTimeout(() => desbloquearUi(), 600);
+    };
+
+    setTimeout(disparar, 150);
+  });
+}
+
 // ─── Estilos base compartidos ─────────────────────────────────────────────────
 
 const CSS_BASE = `
@@ -602,6 +731,12 @@ const generarHTMLReciboAsesoria = (
 };
 
 async function imprimirYCompartirHtml(html: string, dialogTitle: string): Promise<void> {
+  if (Platform.OS === 'web') {
+    void dialogTitle;
+    await imprimirHtmlEnWeb(html);
+    return;
+  }
+
   const { uri } = await Print.printToFileAsync({ html });
 
   const opcionesShare = {

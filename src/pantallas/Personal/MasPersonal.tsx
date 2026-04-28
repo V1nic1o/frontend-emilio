@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexto/AuthContext';
@@ -7,23 +7,20 @@ import { useWallet } from '../../contexto/WalletContext';
 import { COLORES } from '../../estilos/colores';
 import { PERSONAL } from '../../estilos/personalTema';
 import { FUENTE, ESPACIADO, RADIO } from '../../estilos/tema';
+import { confirmarAsync } from '../../utilidades/alertaPlataforma';
 
 const MasPersonal: React.FC = () => {
   const { usuario, cerrarSesion } = useAuth();
   const { walletSeleccionado, volverAElegirWorkspace, limpiar } = useWallet();
 
-  const confirmarCerrarSesion = () => {
-    Alert.alert('Cerrar sesión', '¿Estás seguro?', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Cerrar sesión',
-        style: 'destructive',
-        onPress: async () => {
-          limpiar();
-          await cerrarSesion();
-        },
-      },
-    ]);
+  const confirmarCerrarSesion = async () => {
+    const ok = await confirmarAsync('Cerrar sesión', '¿Estás seguro?', {
+      textoAceptar: 'Cerrar sesión',
+      destructivo: true,
+    });
+    if (!ok) return;
+    limpiar();
+    await cerrarSesion();
   };
 
   return (

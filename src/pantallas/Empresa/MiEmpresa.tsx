@@ -7,7 +7,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
-  Alert,
   Image,
   ActivityIndicator,
 } from 'react-native';
@@ -19,6 +18,7 @@ import CampoTexto from '../../componentes/CampoTexto';
 import BotonPrimario from '../../componentes/BotonPrimario';
 import { COLORES } from '../../estilos/colores';
 import { FUENTE, ESPACIADO, RADIO, SCROLL_FORM_PADDING_BOTTOM } from '../../estilos/tema';
+import { mostrarAlerta } from '../../utilidades/alertaPlataforma';
 
 const MiEmpresa: React.FC = () => {
   const [perfil, setPerfil] = useState<Partial<PerfilEmpresa>>({});
@@ -41,7 +41,7 @@ const MiEmpresa: React.FC = () => {
   const seleccionarLogo = async () => {
     const permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permiso.granted) {
-      Alert.alert('Permiso requerido', 'Necesitás permitir el acceso a tus fotos');
+      mostrarAlerta('Permiso requerido', 'Necesitás permitir el acceso a tus fotos');
       return;
     }
     const resultado = await ImagePicker.launchImageLibraryAsync({
@@ -78,9 +78,9 @@ const MiEmpresa: React.FC = () => {
         nit: perfil.nit ?? undefined,
       });
       setPerfil(actualizado);
-      Alert.alert('Guardado', 'Perfil de empresa actualizado');
+      mostrarAlerta('Guardado', 'Perfil de empresa actualizado');
     } catch (e: unknown) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo guardar');
+      mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo guardar');
     } finally {
       setGuardando(false);
     }
@@ -134,9 +134,9 @@ const MiEmpresa: React.FC = () => {
                 try {
                   const actualizado = await perfilServicio.actualizar({ eliminarLogo: true });
                   setPerfil(actualizado);
-                  Alert.alert('Listo', 'Se quitó el logo de tu empresa');
+                  mostrarAlerta('Listo', 'Se quitó el logo de tu empresa');
                 } catch (e: unknown) {
-                  Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo quitar el logo');
+                  mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo quitar el logo');
                 } finally {
                   setGuardando(false);
                 }

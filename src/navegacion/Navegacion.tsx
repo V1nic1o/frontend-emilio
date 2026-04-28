@@ -53,6 +53,7 @@ import CrearGasto from '../pantallas/Gastos/CrearGasto';
 import EditarGasto from '../pantallas/Gastos/EditarGasto';
 import CatalogoProductos from '../pantallas/Productos/CatalogoProductos';
 import FormProducto from '../pantallas/Productos/FormProducto';
+import AgregarSeleccionCatalogo from '../pantallas/Productos/AgregarSeleccionCatalogo';
 import MiEmpresa from '../pantallas/Empresa/MiEmpresa';
 import PantallaMas from '../pantallas/Mas/PantallaMas';
 import InicioPersonal from '../pantallas/Personal/InicioPersonal';
@@ -264,6 +265,11 @@ function CatalogoNavigator() {
   return (
     <CatalogoStack.Navigator screenOptions={opcionesHeader}>
       <CatalogoStack.Screen name="CatalogoProductos" component={CatalogoProductos} options={{ title: 'Catálogo' }} />
+      <CatalogoStack.Screen
+        name="AgregarSeleccionCatalogo"
+        component={AgregarSeleccionCatalogo}
+        options={{ title: 'Selección al carrito' }}
+      />
       <CatalogoStack.Screen name="FormProducto" component={FormProducto} options={{ title: 'Producto', presentation: 'modal' }} />
     </CatalogoStack.Navigator>
   );

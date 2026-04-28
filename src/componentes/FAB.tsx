@@ -8,7 +8,9 @@ type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 interface Props {
   onPress: () => void;
   icono?: IoniconName;
+  /** Color de fondo del botón (nombre histórico `color`). */
   color?: string;
+  colorIcono?: string;
   estilo?: ViewStyle;
 }
 
@@ -16,6 +18,7 @@ const FAB: React.FC<Props> = ({
   onPress,
   icono = 'add',
   color = COLORES.primario,
+  colorIcono = COLORES.blanco,
   estilo,
 }) => (
   <TouchableOpacity
@@ -23,7 +26,7 @@ const FAB: React.FC<Props> = ({
     onPress={onPress}
     activeOpacity={0.85}
   >
-    <Ionicons name={icono} size={28} color={COLORES.blanco} />
+    <Ionicons name={icono} size={28} color={colorIcono} />
   </TouchableOpacity>
 );
 

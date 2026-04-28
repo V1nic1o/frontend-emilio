@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, ScrollView, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { View, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { IngresosPersonalStackParamList } from '../../../navegacion/tipos';
@@ -10,6 +10,7 @@ import { COLORES } from '../../../estilos/colores';
 import { PERSONAL } from '../../../estilos/personalTema';
 import { ESPACIADO, estilosComunes, SCROLL_FORM_PADDING_BOTTOM } from '../../../estilos/tema';
 import { parsearNumero } from '../../../utilidades/formato';
+import { mostrarAlerta } from '../../../utilidades/alertaPlataforma';
 
 type Props = NativeStackScreenProps<IngresosPersonalStackParamList, 'CrearIngresoPersonal'>;
 
@@ -22,11 +23,11 @@ const CrearIngresoPersonal: React.FC<Props> = ({ navigation }) => {
   const guardar = async () => {
     const m = parsearNumero(monto);
     if (!descripcion.trim()) {
-      Alert.alert('Datos', 'Agregá una descripción');
+      mostrarAlerta('Datos', 'Agregá una descripción');
       return;
     }
     if (m <= 0) {
-      Alert.alert('Datos', 'El monto debe ser mayor a 0');
+      mostrarAlerta('Datos', 'El monto debe ser mayor a 0');
       return;
     }
     setGuardando(true);
@@ -34,7 +35,7 @@ const CrearIngresoPersonal: React.FC<Props> = ({ navigation }) => {
       await crear({ descripcion: descripcion.trim(), monto: m });
       navigation.goBack();
     } catch (e: unknown) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo guardar');
+      mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo guardar');
     } finally {
       setGuardando(false);
     }

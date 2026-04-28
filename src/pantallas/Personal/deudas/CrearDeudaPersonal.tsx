@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, ScrollView, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { View, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { DeudasPersonalStackParamList } from '../../../navegacion/tipos';
@@ -9,6 +9,7 @@ import BotonPrimario from '../../../componentes/BotonPrimario';
 import { PERSONAL } from '../../../estilos/personalTema';
 import { estilosComunes, ESPACIADO, SCROLL_FORM_PADDING_BOTTOM } from '../../../estilos/tema';
 import { parsearNumero } from '../../../utilidades/formato';
+import { mostrarAlerta } from '../../../utilidades/alertaPlataforma';
 
 type Props = NativeStackScreenProps<DeudasPersonalStackParamList, 'CrearDeudaPersonal'>;
 
@@ -22,11 +23,11 @@ const CrearDeudaPersonal: React.FC<Props> = ({ navigation }) => {
   const guardar = async () => {
     const m = parsearNumero(monto);
     if (!titulo.trim()) {
-      Alert.alert('Datos', 'Agregá un título');
+      mostrarAlerta('Datos', 'Agregá un título');
       return;
     }
     if (m <= 0) {
-      Alert.alert('Datos', 'El monto original debe ser mayor a 0');
+      mostrarAlerta('Datos', 'El monto original debe ser mayor a 0');
       return;
     }
     setGuardando(true);
@@ -34,7 +35,7 @@ const CrearDeudaPersonal: React.FC<Props> = ({ navigation }) => {
       await crear({ titulo: titulo.trim(), montoOriginal: m, notas: notas.trim() || undefined });
       navigation.goBack();
     } catch (e: unknown) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo guardar');
+      mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo guardar');
     } finally {
       setGuardando(false);
     }

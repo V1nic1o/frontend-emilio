@@ -4,7 +4,6 @@ import {
   Text,
   ScrollView,
   StyleSheet,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
@@ -20,6 +19,7 @@ import CampoTexto from '../../componentes/CampoTexto';
 import BotonPrimario from '../../componentes/BotonPrimario';
 import { COLORES } from '../../estilos/colores';
 import { FUENTE, ESPACIADO, RADIO, estilosComunes, SCROLL_FORM_PADDING_BOTTOM } from '../../estilos/tema';
+import { mostrarAlerta } from '../../utilidades/alertaPlataforma';
 
 type Props = NativeStackScreenProps<WalletStackParamList, 'CrearWallet'>;
 
@@ -65,7 +65,7 @@ const CrearWallet: React.FC<Props> = ({ navigation }) => {
       await recargarWallets();
       seleccionar(nuevo);
     } catch {
-      Alert.alert('Error', 'No se pudo crear el workspace');
+      mostrarAlerta('Error', 'No se pudo crear el workspace');
     } finally {
       setGuardando(false);
     }

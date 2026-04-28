@@ -8,7 +8,6 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
-  Alert,
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -25,6 +24,7 @@ import { COLORES } from '../../estilos/colores';
 import { FUENTE, ESPACIADO, RADIO, SCROLL_FORM_PADDING_BOTTOM } from '../../estilos/tema';
 import { formatearMoneda, formatearFecha } from '../../utilidades/formato';
 import { generarYCompartirPdfReciboAsesoria } from '../../utilidades/pdf';
+import { mostrarAlerta, confirmarAsync } from '../../utilidades/alertaPlataforma';
 import { perfilServicio, PerfilEmpresa } from '../../servicios/perfil.servicio';
 import { AsesoriaCobro } from '../../tipos';
 
@@ -133,7 +133,7 @@ const AsesoriaMensualPantalla: React.FC<Props> = ({ navigation, route }) => {
     if (!walletSeleccionado) return;
     const m = parseFloat(montoStr.replace(',', '.'));
     if (!Number.isFinite(m) || m <= 0) {
-      Alert.alert('Monto inválido', 'Ingresá un monto mayor a cero');
+      mostrarAlerta('Monto inválido', 'Ingresá un monto mayor a cero');
       return;
     }
     const impRaw = impuestoStr.trim();
@@ -141,7 +141,7 @@ const AsesoriaMensualPantalla: React.FC<Props> = ({ navigation, route }) => {
     if (impRaw !== '') {
       const p = parseFloat(impRaw.replace(',', '.'));
       if (!Number.isFinite(p) || p < 0) {
-        Alert.alert('IVA inválido', 'Dejá vacío si no aplica o un porcentaje válido');
+        mostrarAlerta('IVA inválido', 'Dejá vacío si no aplica o un porcentaje válido');
         return;
       }
       if (p > 0) impuestoPct = p;
@@ -158,7 +158,7 @@ const AsesoriaMensualPantalla: React.FC<Props> = ({ navigation, route }) => {
       solicitarRefrescoFinanzas();
       await cargarAsesoria();
     } catch (e: unknown) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo guardar');
+      mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo guardar');
     } finally {
       setGuardando(false);
     }
@@ -169,7 +169,7 @@ const AsesoriaMensualPantalla: React.FC<Props> = ({ navigation, route }) => {
     if (!walletSeleccionado || !sub) return;
     const m = parseFloat(montoStr.replace(',', '.'));
     if (!Number.isFinite(m) || m <= 0) {
-      Alert.alert('Monto inválido', 'Ingresá un monto mayor a cero');
+      mostrarAlerta('Monto inválido', 'Ingresá un monto mayor a cero');
       return;
     }
     const impRaw = impuestoStr.trim();
@@ -179,7 +179,7 @@ const AsesoriaMensualPantalla: React.FC<Props> = ({ navigation, route }) => {
     } else {
       const p = parseFloat(impRaw.replace(',', '.'));
       if (!Number.isFinite(p) || p < 0) {
-        Alert.alert('IVA inválido', 'Dejá vacío para quitar IVA o un porcentaje válido');
+        mostrarAlerta('IVA inválido', 'Dejá vacío para quitar IVA o un porcentaje válido');
         return;
       }
       impuestoPct = p <= 0 ? null : p;
@@ -194,7 +194,7 @@ const AsesoriaMensualPantalla: React.FC<Props> = ({ navigation, route }) => {
       solicitarRefrescoFinanzas();
       await cargarAsesoria();
     } catch (e: unknown) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo guardar');
+      mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo guardar');
     } finally {
       setGuardando(false);
     }
@@ -210,87 +210,73 @@ const AsesoriaMensualPantalla: React.FC<Props> = ({ navigation, route }) => {
         perfil: perfilEmpresa,
       });
     } catch (e: unknown) {
-      Alert.alert('Error al generar PDF', e instanceof Error ? e.message : 'No se pudo generar el recibo');
+      mostrarAlerta('Error al generar PDF', e instanceof Error ? e.message : 'No se pudo generar el recibo');
     } finally {
       setGenerandoReciboId(null);
     }
   };
 
   const confirmarMarcarPagada = (cobroId: number) => {
-    Alert.alert(
-      'Marcar periodo como cobrado',
-      '¿Confirmás que el cliente ya pagó este mes? Se sumará a ingresos e IVA en estadísticas.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Marcar pagada',
-          onPress: async () => {
-            if (!walletSeleccionado) return;
-            try {
-              await asesoriasServicio.marcarPagada(cobroId, walletSeleccionado.id);
-              solicitarRefrescoFinanzas();
-              await cargarAsesoria();
-            } catch (e: unknown) {
-              Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo registrar');
-            }
-          },
-        },
-      ],
-    );
+    void (async () => {
+      const ok = await confirmarAsync(
+        'Marcar periodo como cobrado',
+        '¿Confirmás que el cliente ya pagó este mes? Se sumará a ingresos e IVA en estadísticas.',
+        { textoAceptar: 'Marcar pagada' },
+      );
+      if (!ok || !walletSeleccionado) return;
+      try {
+        await asesoriasServicio.marcarPagada(cobroId, walletSeleccionado.id);
+        solicitarRefrescoFinanzas();
+        await cargarAsesoria();
+      } catch (e: unknown) {
+        mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo registrar');
+      }
+    })();
   };
 
   const toggleActiva = () => {
     const sub = asesoriaResp?.suscripcion;
     if (!walletSeleccionado || !sub) return;
     const activar = !sub.activa;
-    Alert.alert(
-      activar ? 'Reactivar asesoría mensual' : 'Pausar asesoría mensual',
-      activar
-        ? 'Se volverán a generar los periodos del mes en curso y los siguientes.'
-        : 'No se crearán nuevos periodos. Lo ya registrado se conserva.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Confirmar',
-          onPress: async () => {
-            try {
-              if (activar) await asesoriasServicio.activar(sub.id, walletSeleccionado.id);
-              else await asesoriasServicio.desactivar(sub.id, walletSeleccionado.id);
-              solicitarRefrescoFinanzas();
-              await cargarAsesoria();
-            } catch (e: unknown) {
-              Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo actualizar');
-            }
-          },
-        },
-      ],
-    );
+    void (async () => {
+      const ok = await confirmarAsync(
+        activar ? 'Reactivar asesoría mensual' : 'Pausar asesoría mensual',
+        activar
+          ? 'Se volverán a generar los periodos del mes en curso y los siguientes.'
+          : 'No se crearán nuevos periodos. Lo ya registrado se conserva.',
+        { textoAceptar: 'Confirmar' },
+      );
+      if (!ok) return;
+      try {
+        if (activar) await asesoriasServicio.activar(sub.id, walletSeleccionado.id);
+        else await asesoriasServicio.desactivar(sub.id, walletSeleccionado.id);
+        solicitarRefrescoFinanzas();
+        await cargarAsesoria();
+      } catch (e: unknown) {
+        mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo actualizar');
+      }
+    })();
   };
 
   const confirmarEliminar = () => {
     const sub = asesoriaResp?.suscripcion;
     if (!walletSeleccionado || !sub) return;
-    Alert.alert(
-      'Eliminar asesoría mensual',
-      'Se borrará el plan y todo el historial de periodos de este cliente. No se puede deshacer.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await asesoriasServicio.eliminar(sub.id, walletSeleccionado.id);
-              solicitarRefrescoFinanzas();
-              await cargarAsesoria();
-              navigation.goBack();
-            } catch (e: unknown) {
-              Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo eliminar');
-            }
-          },
-        },
-      ],
-    );
+    void (async () => {
+      const ok = await confirmarAsync(
+        'Eliminar asesoría mensual',
+        'Se borrará el plan y todo el historial de periodos de este cliente. No se puede deshacer.',
+        { textoAceptar: 'Eliminar', destructivo: true },
+      );
+      if (!ok) return;
+      try {
+        await asesoriasServicio.eliminar(sub.id, walletSeleccionado.id);
+        solicitarRefrescoFinanzas();
+        await cargarAsesoria();
+        navigation.goBack();
+      } catch (e: unknown) {
+        mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo eliminar');
+      }
+    })();
   };
 
   if (!walletSeleccionado) {

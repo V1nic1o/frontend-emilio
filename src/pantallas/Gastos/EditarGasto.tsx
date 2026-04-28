@@ -4,7 +4,6 @@ import {
   Text,
   ScrollView,
   StyleSheet,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
@@ -21,6 +20,7 @@ import { PERSONAL } from '../../estilos/personalTema';
 import { FUENTE, ESPACIADO, RADIO, estilosComunes, SCROLL_FORM_PADDING_BOTTOM } from '../../estilos/tema';
 import { useWallet } from '../../contexto/WalletContext';
 import { parsearNumero } from '../../utilidades/formato';
+import { mostrarAlerta, alertaUnBoton } from '../../utilidades/alertaPlataforma';
 
 type Props = NativeStackScreenProps<GastosStackParamList, 'EditarGasto'>;
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -81,7 +81,10 @@ const EditarGasto: React.FC<Props> = ({ navigation, route }) => {
 
   useEffect(() => {
     if (gastos.length > 0 && !gastos.some((x) => x.id === gastoId)) {
-      Alert.alert('No encontrado', 'Este gasto ya no existe.', [{ text: 'OK', onPress: () => navigation.goBack() }]);
+      alertaUnBoton('No encontrado', 'Este gasto ya no existe.', {
+        textoBoton: 'OK',
+        onPress: () => navigation.goBack(),
+      });
     }
   }, [gastos, gastoId, navigation]);
 
@@ -109,7 +112,7 @@ const EditarGasto: React.FC<Props> = ({ navigation, route }) => {
       });
       navigation.goBack();
     } catch (e: unknown) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo guardar');
+      mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo guardar');
     } finally {
       setGuardando(false);
     }
