@@ -52,31 +52,34 @@ export function CarritoCatalogoPedidoProvider({ children }: { children: React.Re
   }, [lineas]);
 
   useEffect(() => {
-    setLineas([]);
     lineasRef.current = [];
     transferenciaPendienteRef.current = false;
+    setLineas([]);
   }, [walletSeleccionado?.id]);
 
   const agregarProducto = useCallback((p: Producto, cantidad = 1) => {
     const c = Math.max(1, cantidad);
     setLineas((prev) => {
       const i = prev.findIndex((l) => l.productoId === p.id);
+      let next: LineaCarritoCatalogo[];
       if (i >= 0) {
-        const next = [...prev];
+        next = [...prev];
         next[i] = { ...next[i], cantidad: next[i].cantidad + c };
-        return next;
+      } else {
+        next = [
+          ...prev,
+          {
+            productoId: p.id,
+            tipo: p.tipo,
+            nombre: p.nombre,
+            cantidad: c,
+            precioCompra: p.precioProveedor,
+            precioVenta: p.precioEmpresa,
+          },
+        ];
       }
-      return [
-        ...prev,
-        {
-          productoId: p.id,
-          tipo: p.tipo,
-          nombre: p.nombre,
-          cantidad: c,
-          precioCompra: p.precioProveedor,
-          precioVenta: p.precioEmpresa,
-        },
-      ];
+      lineasRef.current = next;
+      return next;
     });
   }, []);
 
@@ -92,11 +95,14 @@ export function CarritoCatalogoPedidoProvider({ children }: { children: React.Re
       const i = prev.findIndex((l) => l.productoId === productoId);
       if (i < 0) return prev;
       const nueva = prev[i].cantidad + delta;
+      let next: LineaCarritoCatalogo[];
       if (nueva <= 0) {
-        return prev.filter((_, idx) => idx !== i);
+        next = prev.filter((_, idx) => idx !== i);
+      } else {
+        next = [...prev];
+        next[i] = { ...next[i], cantidad: nueva };
       }
-      const next = [...prev];
-      next[i] = { ...next[i], cantidad: nueva };
+      lineasRef.current = next;
       return next;
     });
   }, []);
@@ -105,7 +111,11 @@ export function CarritoCatalogoPedidoProvider({ children }: { children: React.Re
 
   const setCantidadAbsolutaPorProductoId = useCallback((productoId: number, cantidad: number) => {
     if (!Number.isFinite(cantidad) || cantidad <= 0) {
-      setLineas((prev) => prev.filter((l) => l.productoId !== productoId));
+      setLineas((prev) => {
+        const next = prev.filter((l) => l.productoId !== productoId);
+        lineasRef.current = next;
+        return next;
+      });
       return;
     }
     const c = Math.min(cantidad, MAX_CANTIDAD_CARRITO);
@@ -114,14 +124,15 @@ export function CarritoCatalogoPedidoProvider({ children }: { children: React.Re
       if (i < 0) return prev;
       const next = [...prev];
       next[i] = { ...next[i], cantidad: c };
+      lineasRef.current = next;
       return next;
     });
   }, []);
 
   const limpiarCarrito = useCallback(() => {
-    setLineas([]);
     lineasRef.current = [];
     transferenciaPendienteRef.current = false;
+    setLineas([]);
   }, []);
 
   const marcarTransferenciaAlPedido = useCallback(() => {
@@ -132,8 +143,8 @@ export function CarritoCatalogoPedidoProvider({ children }: { children: React.Re
     if (!transferenciaPendienteRef.current) return [];
     transferenciaPendienteRef.current = false;
     const out = lineasRef.current.map((l) => ({ ...l }));
-    setLineas([]);
     lineasRef.current = [];
+    setLineas([]);
     return out;
   }, []);
 

@@ -99,9 +99,13 @@ const ListaPersonas: React.FC<Props> = ({ navigation }) => {
 
           const esCliente = item.tipo === 'cliente';
           const saldoPropio = getSaldo(item.id, item.tipo);
-          const saldoProveedor = item.saldoComoProveedor ?? 0;
+          const saldoCostoProveedor = item.saldoCostoPendienteConProveedor ?? 0;
+          const saldoVentasCobrarProveedor = item.saldoVentaPorCobrarComoProveedor ?? 0;
           const saldoAsesoria = esCliente ? pendienteAsesoriaPorPersona.get(item.id) ?? 0 : 0;
-          const saldo = saldoPropio + saldoProveedor + saldoAsesoria;
+          const porPagarProveedorTotal = esCliente ? saldoPropio : saldoPropio + saldoCostoProveedor;
+          const tienePendienteCliente = esCliente && saldoPropio + saldoAsesoria > 0;
+          const tienePendienteProveedor =
+            !esCliente && (porPagarProveedorTotal > 0 || saldoVentasCobrarProveedor > 0);
           const color = esCliente ? COLORES.cliente : COLORES.proveedor;
           const fondo = esCliente ? COLORES.clienteClaro : COLORES.proveedorClaro;
           const inicial = (item.nombre?.trim() || '?').charAt(0).toUpperCase();
@@ -128,12 +132,38 @@ const ListaPersonas: React.FC<Props> = ({ navigation }) => {
               <View style={estilos.cardBody}>
                 <Text style={estilos.nombre} numberOfLines={2}>{item.nombre}</Text>
 
-                {saldo > 0 ? (
-                  <View style={estilos.saldoBox}>
-                    <Text style={estilos.saldoLabel}>{esCliente ? 'Por cobrar' : 'Por pagar'}</Text>
-                    <Text style={[estilos.saldoMonto, { color: esCliente ? COLORES.peligro : COLORES.advertencia }]}>
-                      {formatearMoneda(saldo)}
-                    </Text>
+                {esCliente ? (
+                  tienePendienteCliente ? (
+                    <View style={estilos.saldoBox}>
+                      <Text style={estilos.saldoLabel}>Por cobrar</Text>
+                      <Text style={[estilos.saldoMonto, { color: COLORES.peligro }]}>
+                        {formatearMoneda(saldoPropio + saldoAsesoria)}
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={estilos.alDiaBox}>
+                      <Ionicons name="checkmark-circle" size={12} color={COLORES.exito} />
+                      <Text style={estilos.alDiaTexto}>Al día</Text>
+                    </View>
+                  )
+                ) : tienePendienteProveedor ? (
+                  <View style={{ gap: ESPACIADO.xs }}>
+                    {saldoVentasCobrarProveedor > 0 && (
+                      <View style={estilos.saldoBox}>
+                        <Text style={estilos.saldoLabel}>Por cobrar</Text>
+                        <Text style={[estilos.saldoMonto, { color: COLORES.primario }]}>
+                          {formatearMoneda(saldoVentasCobrarProveedor)}
+                        </Text>
+                      </View>
+                    )}
+                    {porPagarProveedorTotal > 0 && (
+                      <View style={estilos.saldoBox}>
+                        <Text style={estilos.saldoLabel}>Por pagar</Text>
+                        <Text style={[estilos.saldoMonto, { color: COLORES.advertencia }]}>
+                          {formatearMoneda(porPagarProveedorTotal)}
+                        </Text>
+                      </View>
+                    )}
                   </View>
                 ) : (
                   <View style={estilos.alDiaBox}>

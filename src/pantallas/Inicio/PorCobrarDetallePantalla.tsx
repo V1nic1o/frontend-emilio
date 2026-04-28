@@ -17,7 +17,7 @@ import { InicioStackParamList, TabParamList } from '../../navegacion/tipos';
 import { usePedidos } from '../../hooks/usePedidos';
 import { useAsesoriasPendientes } from '../../hooks/useAsesorias';
 import { useWallet } from '../../contexto/WalletContext';
-import { ventasPorCobrarPendientes } from '../../utilidades/pagosPendientes';
+import { ventasPorCobrarPendientes, tituloVentaParaListado } from '../../utilidades/pagosPendientes';
 import { asesoriasServicio } from '../../servicios/asesorias.servicio';
 import { COLORES } from '../../estilos/colores';
 import { FUENTE, ESPACIADO, RADIO, estilosComunes } from '../../estilos/tema';
@@ -123,7 +123,7 @@ const PorCobrarDetallePantalla: React.FC<Props> = ({ navigation }) => {
             </View>
             <View style={estilos.info}>
               <Text style={estilos.nombre} numberOfLines={1}>
-                {p.persona?.nombre ?? '—'}
+                {tituloVentaParaListado(p)}
               </Text>
               <Text style={estilos.sub}>Venta · {formatearFecha(p.fecha)}</Text>
             </View>

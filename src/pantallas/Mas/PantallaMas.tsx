@@ -7,7 +7,7 @@ import { useAuth } from '../../contexto/AuthContext';
 import { useWallet } from '../../contexto/WalletContext';
 import { COLORES } from '../../estilos/colores';
 import { FUENTE, ESPACIADO, RADIO } from '../../estilos/tema';
-import { confirmarAsync } from '../../utilidades/alertaPlataforma';
+import { confirmarYEntonces } from '../../utilidades/alertaPlataforma';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -25,14 +25,16 @@ const PantallaMas: React.FC = () => {
   const { usuario, cerrarSesion } = useAuth();
   const { walletSeleccionado, limpiar } = useWallet();
   const navigation = useNavigation<any>();
-  const confirmarCerrarSesion = async () => {
-    const ok = await confirmarAsync('Cerrar sesión', '¿Estás seguro que querés cerrar sesión?', {
-      textoAceptar: 'Cerrar sesión',
-      destructivo: true,
-    });
-    if (!ok) return;
-    limpiar();
-    await cerrarSesion();
+  const confirmarCerrarSesion = () => {
+    confirmarYEntonces(
+      'Cerrar sesión',
+      '¿Estás seguro que querés cerrar sesión?',
+      { textoAceptar: 'Cerrar sesión', destructivo: true },
+      async () => {
+        limpiar();
+        await cerrarSesion();
+      },
+    );
   };
 
   const opciones: OpcionMenu[] = [

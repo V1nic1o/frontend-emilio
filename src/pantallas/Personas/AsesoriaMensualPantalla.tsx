@@ -24,7 +24,7 @@ import { COLORES } from '../../estilos/colores';
 import { FUENTE, ESPACIADO, RADIO, SCROLL_FORM_PADDING_BOTTOM } from '../../estilos/tema';
 import { formatearMoneda, formatearFecha } from '../../utilidades/formato';
 import { generarYCompartirPdfReciboAsesoria } from '../../utilidades/pdf';
-import { mostrarAlerta, confirmarAsync } from '../../utilidades/alertaPlataforma';
+import { mostrarAlerta, confirmarYEntonces } from '../../utilidades/alertaPlataforma';
 import { perfilServicio, PerfilEmpresa } from '../../servicios/perfil.servicio';
 import { AsesoriaCobro } from '../../tipos';
 
@@ -217,66 +217,64 @@ const AsesoriaMensualPantalla: React.FC<Props> = ({ navigation, route }) => {
   };
 
   const confirmarMarcarPagada = (cobroId: number) => {
-    void (async () => {
-      const ok = await confirmarAsync(
-        'Marcar periodo como cobrado',
-        '¿Confirmás que el cliente ya pagó este mes? Se sumará a ingresos e IVA en estadísticas.',
-        { textoAceptar: 'Marcar pagada' },
-      );
-      if (!ok || !walletSeleccionado) return;
-      try {
-        await asesoriasServicio.marcarPagada(cobroId, walletSeleccionado.id);
-        solicitarRefrescoFinanzas();
-        await cargarAsesoria();
-      } catch (e: unknown) {
-        mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo registrar');
-      }
-    })();
+    if (!walletSeleccionado) return;
+    confirmarYEntonces(
+      'Marcar periodo como cobrado',
+      '¿Confirmás que el cliente ya pagó este mes? Se sumará a ingresos e IVA en estadísticas.',
+      { textoAceptar: 'Marcar pagada' },
+      async () => {
+        try {
+          await asesoriasServicio.marcarPagada(cobroId, walletSeleccionado.id);
+          solicitarRefrescoFinanzas();
+          await cargarAsesoria();
+        } catch (e: unknown) {
+          mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo registrar');
+        }
+      },
+    );
   };
 
   const toggleActiva = () => {
     const sub = asesoriaResp?.suscripcion;
     if (!walletSeleccionado || !sub) return;
     const activar = !sub.activa;
-    void (async () => {
-      const ok = await confirmarAsync(
-        activar ? 'Reactivar asesoría mensual' : 'Pausar asesoría mensual',
-        activar
-          ? 'Se volverán a generar los periodos del mes en curso y los siguientes.'
-          : 'No se crearán nuevos periodos. Lo ya registrado se conserva.',
-        { textoAceptar: 'Confirmar' },
-      );
-      if (!ok) return;
-      try {
-        if (activar) await asesoriasServicio.activar(sub.id, walletSeleccionado.id);
-        else await asesoriasServicio.desactivar(sub.id, walletSeleccionado.id);
-        solicitarRefrescoFinanzas();
-        await cargarAsesoria();
-      } catch (e: unknown) {
-        mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo actualizar');
-      }
-    })();
+    confirmarYEntonces(
+      activar ? 'Reactivar asesoría mensual' : 'Pausar asesoría mensual',
+      activar
+        ? 'Se volverán a generar los periodos del mes en curso y los siguientes.'
+        : 'No se crearán nuevos periodos. Lo ya registrado se conserva.',
+      { textoAceptar: 'Confirmar' },
+      async () => {
+        try {
+          if (activar) await asesoriasServicio.activar(sub.id, walletSeleccionado.id);
+          else await asesoriasServicio.desactivar(sub.id, walletSeleccionado.id);
+          solicitarRefrescoFinanzas();
+          await cargarAsesoria();
+        } catch (e: unknown) {
+          mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo actualizar');
+        }
+      },
+    );
   };
 
   const confirmarEliminar = () => {
     const sub = asesoriaResp?.suscripcion;
     if (!walletSeleccionado || !sub) return;
-    void (async () => {
-      const ok = await confirmarAsync(
-        'Eliminar asesoría mensual',
-        'Se borrará el plan y todo el historial de periodos de este cliente. No se puede deshacer.',
-        { textoAceptar: 'Eliminar', destructivo: true },
-      );
-      if (!ok) return;
-      try {
-        await asesoriasServicio.eliminar(sub.id, walletSeleccionado.id);
-        solicitarRefrescoFinanzas();
-        await cargarAsesoria();
-        navigation.goBack();
-      } catch (e: unknown) {
-        mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo eliminar');
-      }
-    })();
+    confirmarYEntonces(
+      'Eliminar asesoría mensual',
+      'Se borrará el plan y todo el historial de periodos de este cliente. No se puede deshacer.',
+      { textoAceptar: 'Eliminar', destructivo: true },
+      async () => {
+        try {
+          await asesoriasServicio.eliminar(sub.id, walletSeleccionado.id);
+          solicitarRefrescoFinanzas();
+          await cargarAsesoria();
+          navigation.goBack();
+        } catch (e: unknown) {
+          mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo eliminar');
+        }
+      },
+    );
   };
 
   if (!walletSeleccionado) {

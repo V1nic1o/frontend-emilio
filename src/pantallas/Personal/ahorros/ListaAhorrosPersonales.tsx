@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -25,7 +25,7 @@ import { COLORES } from '../../../estilos/colores';
 import { PERSONAL } from '../../../estilos/personalTema';
 import { FUENTE, ESPACIADO, RADIO, estilosComunes } from '../../../estilos/tema';
 import { formatearMoneda, parsearNumero } from '../../../utilidades/formato';
-import { mostrarAlerta, confirmarAsync } from '../../../utilidades/alertaPlataforma';
+import { mostrarAlerta, confirmarYEntonces } from '../../../utilidades/alertaPlataforma';
 
 type Props = NativeStackScreenProps<AhorrosPersonalStackParamList, 'ListaAhorrosPersonales'>;
 
@@ -59,6 +59,24 @@ const ListaAhorrosPersonales: React.FC<Props> = ({ navigation }) => {
       setGuardando(false);
     }
   };
+
+  const onEliminarAhorro = useCallback(
+    (item: AhorroPersonal) => {
+      confirmarYEntonces(
+        'Eliminar',
+        `¿Quitar «${item.nombre}»?`,
+        { textoAceptar: 'Eliminar', destructivo: true },
+        async () => {
+          try {
+            await eliminar(item.id);
+          } catch {
+            /* — */
+          }
+        },
+      );
+    },
+    [eliminar],
+  );
 
   if (cargando && ahorros.length === 0) return <CargandoSpinner />;
   if (error && ahorros.length === 0) return <ErrorMensaje mensaje={error} onReintentar={cargar} />;
@@ -103,24 +121,7 @@ const ListaAhorrosPersonales: React.FC<Props> = ({ navigation }) => {
                   >
                     <Ionicons name="create-outline" size={20} color={COLORES.primario} />
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => {
-                      void (async () => {
-                        const ok = await confirmarAsync('Eliminar', `¿Quitar «${item.nombre}»?`, {
-                          textoAceptar: 'Eliminar',
-                          destructivo: true,
-                        });
-                        if (!ok) return;
-                        try {
-                          await eliminar(item.id);
-                        } catch {
-                          /* — */
-                        }
-                      })();
-                    }}
-                    hitSlop={10}
-                    accessibilityLabel="Eliminar meta"
-                  >
+                  <TouchableOpacity onPress={() => onEliminarAhorro(item)} hitSlop={10} accessibilityLabel="Eliminar meta">
                     <Ionicons name="trash-outline" size={18} color={COLORES.peligro} />
                   </TouchableOpacity>
                 </View>

@@ -25,12 +25,13 @@ import CargandoSpinner from '../../componentes/CargandoSpinner';
 import ErrorMensaje from '../../componentes/ErrorMensaje';
 import EstadoBadge from '../../componentes/EstadoBadge';
 import FAB from '../../componentes/FAB';
+import IndicadorWorkspaceHeader from '../../componentes/IndicadorWorkspaceHeader';
 import CampoTexto from '../../componentes/CampoTexto';
 import BotonPrimario from '../../componentes/BotonPrimario';
 import { COLORES } from '../../estilos/colores';
 import { FUENTE, ESPACIADO, RADIO, estilosComunes, SCROLL_FORM_PADDING_BOTTOM } from '../../estilos/tema';
 import { formatearMoneda, formatearFecha, etiquetaPedido, subtituloNumeroPedido } from '../../utilidades/formato';
-import { mostrarAlerta, confirmarAsync } from '../../utilidades/alertaPlataforma';
+import { mostrarAlerta, confirmarYEntonces } from '../../utilidades/alertaPlataforma';
 
 type Props = NativeStackScreenProps<PersonasStackParamList, 'DetallePersona'>;
 
@@ -85,9 +86,12 @@ const DetallePersona: React.FC<Props> = ({ navigation, route }) => {
     navigation.setOptions({
       title: persona.nombre,
       headerRight: () => (
-        <TouchableOpacity onPress={abrirEditar} style={{ marginRight: 4, padding: 6 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Ionicons name="pencil-outline" size={20} color={COLORES.primario} />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 4 }}>
+          <IndicadorWorkspaceHeader compacto />
+          <TouchableOpacity onPress={abrirEditar} style={{ padding: 6 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="pencil-outline" size={20} color={COLORES.primario} />
+          </TouchableOpacity>
+        </View>
       ),
     });
   }, [persona, navigation, abrirEditar]);
@@ -117,20 +121,19 @@ const DetallePersona: React.FC<Props> = ({ navigation, route }) => {
   };
 
   const handleEliminar = () => {
-    void (async () => {
-      const ok = await confirmarAsync(
-        'Eliminar persona',
-        `¿Eliminar a "${persona?.nombre}"? Se eliminarán también todos sus pedidos. Esta acción no se puede deshacer.`,
-        { textoAceptar: 'Eliminar', destructivo: true },
-      );
-      if (!ok) return;
-      try {
-        await eliminar(personaId);
-        navigation.goBack();
-      } catch (e: unknown) {
-        mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo eliminar');
-      }
-    })();
+    confirmarYEntonces(
+      'Eliminar persona',
+      `¿Eliminar a "${persona?.nombre}"? Se eliminarán también todos sus pedidos. Esta acción no se puede deshacer.`,
+      { textoAceptar: 'Eliminar', destructivo: true },
+      async () => {
+        try {
+          await eliminar(personaId);
+          navigation.goBack();
+        } catch (e: unknown) {
+          mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo eliminar');
+        }
+      },
+    );
   };
 
   // Pedidos propios de esta persona
@@ -187,9 +190,19 @@ const DetallePersona: React.FC<Props> = ({ navigation, route }) => {
 
   const renderPedidoComoProveedor = useCallback(
     ({ item }: { item: PedidoComoProveedor }) => {
-      const totalCompra = (item.items ?? []).reduce((s, i) => s + i.cantidad * i.precioCompra, 0);
-      const totalPagado = (item.pagosProveedor ?? []).reduce((s, p) => s + p.monto, 0);
-      const saldo = Math.max(0, totalCompra - totalPagado);
+      const esSoloProveedorVenta =
+        item.tipo === 'venta' && (item.personaId == null || item.personaId === undefined);
+      let totalMostrar: number;
+      let saldo: number;
+      if (esSoloProveedorVenta && item.resumen) {
+        totalMostrar = item.resumen.totalVenta;
+        saldo = item.resumen.saldoPendiente;
+      } else {
+        const totalCompra = (item.items ?? []).reduce((s, i) => s + i.cantidad * i.precioCompra, 0);
+        const totalPagado = (item.pagosProveedor ?? []).reduce((s, p) => s + p.monto, 0);
+        saldo = Math.max(0, totalCompra - totalPagado);
+        totalMostrar = totalCompra;
+      }
       const estaPagado = saldo === 0;
       const subNum = subtituloNumeroPedido(item);
       return (
@@ -216,7 +229,7 @@ const DetallePersona: React.FC<Props> = ({ navigation, route }) => {
             <Text style={estilos.pedidoFecha}>{formatearFecha(item.fecha)}</Text>
           </View>
           <View style={estilos.pedidoDer}>
-            <Text style={[estilos.pedidoTotal, { color: COLORES.proveedor }]}>{formatearMoneda(totalCompra)}</Text>
+            <Text style={[estilos.pedidoTotal, { color: COLORES.proveedor }]}>{formatearMoneda(totalMostrar)}</Text>
             {saldo > 0 ? (
               <Text style={estilos.pedidoSaldo}>Pendiente {formatearMoneda(saldo)}</Text>
             ) : (
@@ -246,8 +259,8 @@ const DetallePersona: React.FC<Props> = ({ navigation, route }) => {
     const total = esCliente ? (p.resumen?.totalVenta ?? 0) : (p.resumen?.totalCompra ?? 0);
     return acc + Math.max(0, total - (p.resumen?.totalPagado ?? 0));
   }, 0);
-  // Saldo que se le debe como proveedor (en pedidos de venta de otros clientes)
-  const saldoComoProveedor = persona?.saldoComoProveedor ?? 0;
+  const saldoCostoConProveedor = persona?.saldoCostoPendienteConProveedor ?? 0;
+  const saldoVentasPorCobrarConProveedor = persona?.saldoVentaPorCobrarComoProveedor ?? 0;
 
   return (
     <SafeAreaView style={estilosComunes.contenedor} edges={['bottom']}>
@@ -322,7 +335,7 @@ const DetallePersona: React.FC<Props> = ({ navigation, route }) => {
               pedidosComoProveedor.length > 0 ||
               (esCliente && pendienteAsesoriaMonto > 0)) && (
               <View style={estilos.resumenCard}>
-                <View style={estilos.resumenFila}>
+                <View style={[estilos.resumenFila, { flexWrap: 'wrap', justifyContent: 'center' }]}>
                   {pedidosPersona.length > 0 && (
                     <View style={estilos.resumenItem}>
                       <Text style={estilos.resumenLabel}>
@@ -337,12 +350,31 @@ const DetallePersona: React.FC<Props> = ({ navigation, route }) => {
                     <View style={estilos.resumenDivisor} />
                   )}
                   {pedidosComoProveedor.length > 0 && (
-                    <View style={estilos.resumenItem}>
-                      <Text style={estilos.resumenLabel}>Me deben (proveedor)</Text>
-                      <Text style={[estilos.resumenValor, { color: saldoComoProveedor > 0 ? COLORES.peligro : COLORES.exito }]}>
-                        {formatearMoneda(saldoComoProveedor)}
-                      </Text>
-                    </View>
+                    <>
+                      <View style={estilos.resumenItem}>
+                        <Text style={estilos.resumenLabel}>Por cobrar (venta sin cliente)</Text>
+                        <Text
+                          style={[
+                            estilos.resumenValor,
+                            { color: saldoVentasPorCobrarConProveedor > 0 ? COLORES.primario : COLORES.exito },
+                          ]}
+                        >
+                          {formatearMoneda(saldoVentasPorCobrarConProveedor)}
+                        </Text>
+                      </View>
+                      <View style={estilos.resumenDivisor} />
+                      <View style={estilos.resumenItem}>
+                        <Text style={estilos.resumenLabel}>Por pagar (costo)</Text>
+                        <Text
+                          style={[
+                            estilos.resumenValor,
+                            { color: saldoCostoConProveedor > 0 ? COLORES.advertencia : COLORES.exito },
+                          ]}
+                        >
+                          {formatearMoneda(saldoCostoConProveedor)}
+                        </Text>
+                      </View>
+                    </>
                   )}
                   {esCliente && pendienteAsesoriaMonto > 0 && (
                     <>
@@ -416,18 +448,27 @@ const DetallePersona: React.FC<Props> = ({ navigation, route }) => {
         ListFooterComponent={
           pedidosComoProveedor.length > 0 ? (
             <View style={{ paddingBottom: 100 }}>
-              <View style={estilosLocales.seccionProveedorHeader}>
+              <View style={[estilosLocales.seccionProveedorHeader, { flexWrap: 'wrap', gap: ESPACIADO.xs }]}>
                 <Ionicons name="business-outline" size={16} color={COLORES.proveedor} />
-                <Text style={estilosLocales.seccionProveedorTitulo}>
+                <Text style={[estilosLocales.seccionProveedorTitulo, { flex: 1, minWidth: 120 }]}>
                   Pedidos como proveedor · {pedidosComoProveedor.length}
                 </Text>
-                {saldoComoProveedor > 0 && (
-                  <View style={estilosLocales.saldoBadge}>
-                    <Text style={estilosLocales.saldoBadgeTexto}>
-                      Pendiente {formatearMoneda(saldoComoProveedor)}
-                    </Text>
-                  </View>
-                )}
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: ESPACIADO.xs, justifyContent: 'flex-end' }}>
+                  {saldoVentasPorCobrarConProveedor > 0 && (
+                    <View style={[estilosLocales.saldoBadge, { backgroundColor: COLORES.primarioClaro }]}>
+                      <Text style={[estilosLocales.saldoBadgeTexto, { color: COLORES.primario }]}>
+                        Por cobrar {formatearMoneda(saldoVentasPorCobrarConProveedor)}
+                      </Text>
+                    </View>
+                  )}
+                  {saldoCostoConProveedor > 0 && (
+                    <View style={[estilosLocales.saldoBadge, { backgroundColor: COLORES.advertenciaClaro }]}>
+                      <Text style={[estilosLocales.saldoBadgeTexto, { color: COLORES.advertencia }]}>
+                        Costo por pagar {formatearMoneda(saldoCostoConProveedor)}
+                      </Text>
+                    </View>
+                  )}
+                </View>
               </View>
               {pedidosComoProveedor.map((item, idx) => (
                 <View key={item.id} style={idx < pedidosComoProveedor.length - 1 ? { marginBottom: ESPACIADO.sm } : undefined}>

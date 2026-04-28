@@ -155,7 +155,10 @@ export interface Persona {
   createdAt: string;
   pedidos?: Pedido[];
   pedidosProveedor?: PedidoComoProveedor[];
-  saldoComoProveedor?: number;
+  /** Suma de `saldoProveedor` solo en ventas **con** cliente donde esta persona es `proveedorId`. */
+  saldoCostoPendienteConProveedor?: number;
+  /** Suma de `saldoPendiente` de venta sin cliente en app donde es `proveedorId` (te deben por esa venta). */
+  saldoVentaPorCobrarComoProveedor?: number;
   pedidosProveedorCount?: number;
 }
 
@@ -165,9 +168,13 @@ export interface PedidoComoProveedor {
   tipo: TipoPedido;
   fecha: string;
   nombreReferencia?: string | null;
+  impuesto?: number | null;
   persona?: { id: number; nombre: string; tipo: TipoPersona };
   items?: Pick<ItemPedido, 'id' | 'cantidad' | 'precioCompra' | 'precioVenta' | 'nombre' | 'tipo'>[];
+  pagos?: Pago[];
   pagosProveedor?: PagoProveedor[];
+  /** Presente en detalle de persona (API enriquecida). */
+  resumen?: ResumenPedido;
 }
 
 export interface CrearPersonaDto {

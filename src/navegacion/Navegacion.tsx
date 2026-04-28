@@ -71,6 +71,7 @@ import MasPersonal from '../pantallas/Personal/MasPersonal';
 import { COLORES } from '../estilos/colores';
 import { PERSONAL } from '../estilos/personalTema';
 import { FUENTE } from '../estilos/tema';
+import IndicadorWorkspaceHeader from '../componentes/IndicadorWorkspaceHeader';
 
 const Tab = createBottomTabNavigator<TabParamList>();
 const TabPersonal = createBottomTabNavigator<TabParamListPersonal>();
@@ -94,13 +95,17 @@ const opcionesHeader = {
   headerTitleStyle: { fontWeight: FUENTE.pesoBold as 'bold', fontSize: FUENTE.tamanoMedio },
   headerShadowVisible: false,
   headerBackTitle: '',
+  headerRight: () => <IndicadorWorkspaceHeader />,
 };
 
 const opcionesHeaderPersonal = {
-  ...opcionesHeader,
   headerStyle: { backgroundColor: PERSONAL.headerFondo },
   headerTintColor: PERSONAL.accentOscuro,
+  headerTitleStyle: { fontWeight: FUENTE.pesoBold as 'bold', fontSize: FUENTE.tamanoMedio },
+  headerShadowVisible: false,
+  headerBackTitle: '',
   contentStyle: { backgroundColor: PERSONAL.fondo },
+  headerRight: () => <IndicadorWorkspaceHeader variantePersonal />,
 };
 
 // Botón "← Volver" que regresa al stack raíz (MainTabs → PantallaMas)

@@ -21,6 +21,7 @@ import { usePedidoDetalle } from '../../hooks/usePedidos';
 import { useWallet } from '../../contexto/WalletContext';
 import { productosServicio } from '../../servicios/productos.servicio';
 import { pedidosServicio } from '../../servicios/pedidos.servicio';
+import { mensajeUsuarioDesdeErrorApi } from '../../servicios/api';
 import { perfilServicio, PerfilEmpresa } from '../../servicios/perfil.servicio';
 import CargandoSpinner from '../../componentes/CargandoSpinner';
 import ErrorMensaje from '../../componentes/ErrorMensaje';
@@ -31,7 +32,7 @@ import { COLORES } from '../../estilos/colores';
 import { FUENTE, ESPACIADO, RADIO, estilosComunes, SCROLL_FORM_PADDING_BOTTOM } from '../../estilos/tema';
 import { formatearMoneda, formatearFecha, parsearNumero, etiquetaPedido } from '../../utilidades/formato';
 import { generarYCompartirPDF, TipoPDF } from '../../utilidades/pdf';
-import { mostrarAlerta, confirmarAsync } from '../../utilidades/alertaPlataforma';
+import { mostrarAlerta, confirmarYEntonces } from '../../utilidades/alertaPlataforma';
 import { ItemPedido, Producto, TipoItem, TipoPagoProveedor } from '../../tipos';
 
 type Props = NativeStackScreenProps<PedidosStackParamList, 'DetallePedido'>;
@@ -143,13 +144,13 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
       });
       setModalMeta(false);
     } catch (e: unknown) {
-      mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo guardar');
+      mostrarAlerta('Error', mensajeUsuarioDesdeErrorApi(e));
     } finally {
       setGuardandoMeta(false);
     }
   }, [metaNombre, metaImpuesto, actualizarPedido]);
 
-  const handleAgregarPago = useCallback(async () => {
+  const handleAgregarPago = useCallback(() => {
     if (!pedido?.resumen) return;
     const r = pedido.resumen;
     const esV = pedido.tipo === 'venta';
@@ -162,24 +163,28 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
       return;
     }
     if (monto > saldoPendiente) {
-      const ok = await confirmarAsync(
+      confirmarYEntonces(
         'Monto excede el saldo',
         `El máximo a pagar es ${formatearMoneda(saldoPendiente)}.\n\n¿Rellenar el campo con ese monto?`,
         { textoAceptar: 'Usar saldo completo' },
+        () => {
+          setMontoPago(String(saldoPendiente));
+        },
       );
-      if (ok) setMontoPago(String(saldoPendiente));
       return;
     }
-    setGuardandoPago(true);
-    try {
-      await agregarPago({ monto });
-      setModalPago(false);
-      setMontoPago('');
-    } catch (e: unknown) {
-      mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo registrar el pago');
-    } finally {
-      setGuardandoPago(false);
-    }
+    void (async () => {
+      setGuardandoPago(true);
+      try {
+        await agregarPago({ monto });
+        setModalPago(false);
+        setMontoPago('');
+      } catch (e: unknown) {
+        mostrarAlerta('Error', mensajeUsuarioDesdeErrorApi(e));
+      } finally {
+        setGuardandoPago(false);
+      }
+    })();
   }, [pedido, montoPago, agregarPago]);
 
   const handleGenerarPDF = async (tipo: TipoPDF) => {
@@ -192,59 +197,57 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
     try {
       await generarYCompartirPDF(pedido, tipo, perfilEmpresa);
     } catch (e: unknown) {
-      mostrarAlerta('Error al generar PDF', e instanceof Error ? e.message : 'No se pudo generar el PDF');
+      mostrarAlerta('Error al generar PDF', mensajeUsuarioDesdeErrorApi(e));
     } finally {
       setGenerandoPDF(false);
     }
   };
 
   const handleEliminarPago = (pagoId: number, monto: number) => {
-    void (async () => {
-      const ok = await confirmarAsync(
-        'Eliminar pago',
-        `¿Eliminar el pago de ${formatearMoneda(monto)}? Esta acción no se puede deshacer.`,
-        { textoAceptar: 'Eliminar', destructivo: true },
-      );
-      if (!ok) return;
-      try {
-        await eliminarPago(pagoId);
-      } catch (e: unknown) {
-        mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo eliminar');
-      }
-    })();
+    confirmarYEntonces(
+      'Eliminar pago',
+      `¿Eliminar el pago de ${formatearMoneda(monto)}? Esta acción no se puede deshacer.`,
+      { textoAceptar: 'Eliminar', destructivo: true },
+      async () => {
+        try {
+          await eliminarPago(pagoId);
+        } catch (e: unknown) {
+          mostrarAlerta('Error', mensajeUsuarioDesdeErrorApi(e));
+        }
+      },
+    );
   };
 
   const handleEliminarPagoProveedor = (pagoId: number, monto: number, tipoMov?: TipoPagoProveedor) => {
     const esCobro = tipoMov === 'cobro';
-    void (async () => {
-      const ok = await confirmarAsync(
-        esCobro ? 'Eliminar cobro del proveedor' : 'Eliminar pago al proveedor',
-        `¿Eliminar el ${esCobro ? 'cobro' : 'pago'} de ${formatearMoneda(monto)}?`,
-        { textoAceptar: 'Eliminar', destructivo: true },
-      );
-      if (!ok) return;
-      try {
-        await eliminarPagoProveedor(pagoId);
-      } catch (e: unknown) {
-        mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo eliminar');
-      }
-    })();
+    confirmarYEntonces(
+      esCobro ? 'Eliminar cobro del proveedor' : 'Eliminar pago al proveedor',
+      `¿Eliminar el ${esCobro ? 'cobro' : 'pago'} de ${formatearMoneda(monto)}?`,
+      { textoAceptar: 'Eliminar', destructivo: true },
+      async () => {
+        try {
+          await eliminarPagoProveedor(pagoId);
+        } catch (e: unknown) {
+          mostrarAlerta('Error', mensajeUsuarioDesdeErrorApi(e));
+        }
+      },
+    );
   };
 
   const handleEliminar = () => {
-    void (async () => {
-      const ok = await confirmarAsync('Eliminar pedido', '¿Estás seguro? Esta acción no se puede deshacer.', {
-        textoAceptar: 'Eliminar',
-        destructivo: true,
-      });
-      if (!ok) return;
-      try {
-        await pedidosServicio.eliminar(pedidoId);
-        navigation.goBack();
-      } catch (e: unknown) {
-        mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo eliminar');
-      }
-    })();
+    confirmarYEntonces(
+      'Eliminar pedido',
+      '¿Estás seguro? Esta acción no se puede deshacer.',
+      { textoAceptar: 'Eliminar', destructivo: true },
+      async () => {
+        try {
+          await pedidosServicio.eliminar(pedidoId);
+          navigation.goBack();
+        } catch (e: unknown) {
+          mostrarAlerta('Error', mensajeUsuarioDesdeErrorApi(e));
+        }
+      },
+    );
   };
 
   // ─── Item management ──────────────────────────────────────────────────────
@@ -254,18 +257,18 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
   const abrirEditarItem = (item: ItemPedido) => { setItemEditable(itemDesdeExistente(item)); setModalItem(true); };
 
   const handleEliminarItem = (item: ItemPedido) => {
-    void (async () => {
-      const ok = await confirmarAsync('Eliminar ítem', `¿Eliminar "${item.nombre}"?`, {
-        textoAceptar: 'Eliminar',
-        destructivo: true,
-      });
-      if (!ok) return;
-      try {
-        await eliminarItem(item.id);
-      } catch (e: unknown) {
-        mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo eliminar');
-      }
-    })();
+    confirmarYEntonces(
+      'Eliminar ítem',
+      `¿Eliminar "${item.nombre}"?`,
+      { textoAceptar: 'Eliminar', destructivo: true },
+      async () => {
+        try {
+          await eliminarItem(item.id);
+        } catch (e: unknown) {
+          mostrarAlerta('Error', mensajeUsuarioDesdeErrorApi(e));
+        }
+      },
+    );
   };
 
   const seleccionarProductoCatalogo = (producto: Producto) => {
@@ -313,7 +316,7 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
       }
       setModalItem(false);
     } catch (e: unknown) {
-      mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo guardar el ítem');
+      mostrarAlerta('Error', mensajeUsuarioDesdeErrorApi(e));
     } finally {
       setGuardandoItem(false);
     }
@@ -347,7 +350,7 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
     setMontoPagoProveedor('');
   }, []);
 
-  const handleAgregarPagoProveedor = useCallback(async () => {
+  const handleAgregarPagoProveedor = useCallback(() => {
     if (!pedido?.resumen) return;
     const totalCostoProv = pedido.resumen.totalCompra ?? 0;
     const totalPagProv = pedido.resumen.totalPagadoProveedor ?? 0;
@@ -359,23 +362,27 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
       return;
     }
     if (tipoMovimientoProveedor === 'pago' && monto > saldoProv) {
-      const ok = await confirmarAsync(
+      confirmarYEntonces(
         'Monto excede el saldo',
         `El máximo a pagar es ${formatearMoneda(saldoProv)}.\n\n¿Rellenar el campo con ese monto?`,
         { textoAceptar: 'Usar saldo completo' },
+        () => {
+          setMontoPagoProveedor(String(saldoProv));
+        },
       );
-      if (ok) setMontoPagoProveedor(String(saldoProv));
       return;
     }
-    setGuardandoPagoProveedor(true);
-    try {
-      await agregarPagoProveedor({ monto, tipo: tipoMovimientoProveedor });
-      cerrarModalProveedor();
-    } catch (e: unknown) {
-      mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo registrar el movimiento');
-    } finally {
-      setGuardandoPagoProveedor(false);
-    }
+    void (async () => {
+      setGuardandoPagoProveedor(true);
+      try {
+        await agregarPagoProveedor({ monto, tipo: tipoMovimientoProveedor });
+        cerrarModalProveedor();
+      } catch (e: unknown) {
+        mostrarAlerta('Error', mensajeUsuarioDesdeErrorApi(e));
+      } finally {
+        setGuardandoPagoProveedor(false);
+      }
+    })();
   }, [pedido, tipoMovimientoProveedor, montoPagoProveedor, agregarPagoProveedor, cerrarModalProveedor]);
 
   if (cargando && !pedido) return <CargandoSpinner />;
@@ -401,6 +408,8 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
 
   // Proveedor asociado
   const tieneProveedor = !!pedido.proveedorId;
+  /** Costo/pagos al proveedor: solo ventas con cliente vinculado (no «venta solo proveedor»). */
+  const mostrarLadoProveedorCosto = tieneProveedor && !!pedido.persona;
   const totalCostoProveedor = resumen?.totalCompra ?? 0;
   const totalPagadoProveedor = resumen?.totalPagadoProveedor ?? 0;
   const saldoProveedor = resumen?.saldoProveedor ?? Math.max(0, totalCostoProveedor - totalPagadoProveedor);
@@ -593,7 +602,7 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
         </View>
 
         {/* Proveedor asociado (solo ventas con proveedor) */}
-        {tieneProveedor && (
+        {mostrarLadoProveedorCosto && (
           <View style={[estilos.card, estilosLocales.cardProveedor]}>
             <View style={estilos.cardHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: ESPACIADO.sm }}>
@@ -703,7 +712,7 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
         )}
 
         {/* Utilidad real (solo ventas con proveedor asociado) */}
-        {esVenta && tieneProveedor && (
+        {esVenta && mostrarLadoProveedorCosto && (
           <View style={estilosLocales.cardGanancia}>
             <View style={estilos.cardHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: ESPACIADO.sm }}>
@@ -834,7 +843,7 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
               <Ionicons name="chevron-forward" size={16} color={COLORES.textoDeshabilitado} />
             </TouchableOpacity>
 
-            {tieneProveedor && (
+            {mostrarLadoProveedorCosto && (
               <TouchableOpacity style={estilosLocales.pdfOpcion} onPress={() => handleGenerarPDF('proveedor')} activeOpacity={0.85}>
                 <View style={[estilosLocales.pdfIconBox, { backgroundColor: COLORES.proveedorClaro }]}>
                   <Ionicons name="business-outline" size={20} color={COLORES.proveedor} />
@@ -847,7 +856,7 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
               </TouchableOpacity>
             )}
 
-            {tieneProveedor && (
+            {mostrarLadoProveedorCosto && (
               <TouchableOpacity style={estilosLocales.pdfOpcion} onPress={() => handleGenerarPDF('completo')} activeOpacity={0.85}>
                 <View style={[estilosLocales.pdfIconBox, { backgroundColor: COLORES.exitoClaro }]}>
                   <Ionicons name="stats-chart-outline" size={20} color={COLORES.exito} />

@@ -1,5 +1,22 @@
 import { Pedido } from '../tipos';
 
+/**
+ * Venta sin cliente en la app: solo `proveedorId` (flujo «Venta proveedor»).
+ * No confundir con venta a cliente con proveedor de costo opcional.
+ */
+export function esVentaSoloProveedorSinCliente(p: Pick<Pedido, 'tipo' | 'personaId' | 'persona' | 'proveedorId'>): boolean {
+  return p.tipo === 'venta' && (p.personaId == null || p.personaId === undefined) && !!p.proveedorId;
+}
+
+/** Título en listas «por cobrar» cuando no hay persona cliente. */
+export function tituloVentaParaListado(p: Pedido): string {
+  const ref = p.nombreReferencia?.trim();
+  if (ref) return ref;
+  if (p.persona?.nombre?.trim()) return p.persona.nombre.trim();
+  if (p.proveedor?.nombre?.trim()) return p.proveedor.nombre.trim();
+  return 'Venta sin cliente';
+}
+
 /** Misma lógica que en Inicio: pedidos que aparecen en «Requieren pago» / «Sin saldar». */
 export function pedidosRequierenAccionInicio(pedidos: Pedido[]): Pedido[] {
   return pedidos.filter(
@@ -8,6 +25,7 @@ export function pedidosRequierenAccionInicio(pedidos: Pedido[]): Pedido[] {
       p.resumen?.estado === 'parcial' ||
       (p.tipo === 'venta' &&
         !!p.proveedorId &&
+        !esVentaSoloProveedorSinCliente(p) &&
         (p.resumen?.estadoProveedor === 'pendiente' || p.resumen?.estadoProveedor === 'parcial')),
   );
 }
@@ -40,7 +58,7 @@ export function construirFilasPorPagar(pedidos: Pedido[]): FilaPorPagar[] {
         });
       }
     }
-    if (p.tipo === 'venta' && p.proveedorId) {
+    if (p.tipo === 'venta' && p.proveedorId && !esVentaSoloProveedorSinCliente(p)) {
       const monto = p.resumen?.saldoProveedor ?? 0;
       if (monto > 0) {
         out.push({

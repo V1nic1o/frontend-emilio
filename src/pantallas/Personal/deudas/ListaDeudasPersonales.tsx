@@ -25,7 +25,7 @@ import { COLORES } from '../../../estilos/colores';
 import { PERSONAL } from '../../../estilos/personalTema';
 import { FUENTE, ESPACIADO, RADIO, estilosComunes } from '../../../estilos/tema';
 import { formatearMoneda, formatearFecha, parsearNumero } from '../../../utilidades/formato';
-import { mostrarAlerta, confirmarAsync } from '../../../utilidades/alertaPlataforma';
+import { mostrarAlerta, confirmarYEntonces } from '../../../utilidades/alertaPlataforma';
 
 type Props = NativeStackScreenProps<DeudasPersonalStackParamList, 'ListaDeudasPersonales'>;
 
@@ -62,18 +62,18 @@ const ListaDeudasPersonales: React.FC<Props> = ({ navigation }) => {
   };
 
   const onEliminar = (d: DeudaPersonal) => {
-    void (async () => {
-      const ok = await confirmarAsync('Eliminar', `¿Eliminar la deuda «${d.titulo}»?`, {
-        textoAceptar: 'Eliminar',
-        destructivo: true,
-      });
-      if (!ok) return;
-      try {
-        await eliminar(d.id);
-      } catch (e: unknown) {
-        mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo eliminar');
-      }
-    })();
+    confirmarYEntonces(
+      'Eliminar',
+      `¿Eliminar la deuda «${d.titulo}»?`,
+      { textoAceptar: 'Eliminar', destructivo: true },
+      async () => {
+        try {
+          await eliminar(d.id);
+        } catch (e: unknown) {
+          mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo eliminar');
+        }
+      },
+    );
   };
 
   if (cargando && deudas.length === 0) return <CargandoSpinner />;

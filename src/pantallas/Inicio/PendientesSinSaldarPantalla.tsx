@@ -17,7 +17,7 @@ import { InicioStackParamList, TabParamList } from '../../navegacion/tipos';
 import { usePedidos } from '../../hooks/usePedidos';
 import { useAsesoriasPendientes } from '../../hooks/useAsesorias';
 import { useWallet } from '../../contexto/WalletContext';
-import { pedidosRequierenAccionInicio } from '../../utilidades/pagosPendientes';
+import { pedidosRequierenAccionInicio, esVentaSoloProveedorSinCliente, tituloVentaParaListado } from '../../utilidades/pagosPendientes';
 import { COLORES } from '../../estilos/colores';
 import { FUENTE, ESPACIADO, RADIO, estilosComunes } from '../../estilos/tema';
 import { formatearMoneda, formatearFecha } from '../../utilidades/formato';
@@ -110,7 +110,8 @@ const PendientesSinSaldarPantalla: React.FC<Props> = ({ navigation }) => {
         const p = item.p;
         const esVenta = p.tipo === 'venta';
         const saldoCliente = p.resumen?.saldoPendiente ?? 0;
-        const saldoProv = esVenta && p.proveedorId ? (p.resumen?.saldoProveedor ?? 0) : 0;
+        const saldoProv =
+          esVenta && p.proveedorId && !esVentaSoloProveedorSinCliente(p) ? (p.resumen?.saldoProveedor ?? 0) : 0;
         const saldoMostrar = saldoCliente > 0 ? saldoCliente : saldoProv;
         const estadoMostrar = saldoCliente > 0
           ? (p.resumen?.estado ?? 'pendiente')
@@ -126,7 +127,7 @@ const PendientesSinSaldarPantalla: React.FC<Props> = ({ navigation }) => {
             </View>
             <View style={estilos.info}>
               <Text style={estilos.nombre} numberOfLines={1}>
-                {p.persona?.nombre ?? '—'}
+                {tituloVentaParaListado(p)}
               </Text>
               <Text style={estilos.sub}>{formatearFecha(p.fecha)}</Text>
             </View>

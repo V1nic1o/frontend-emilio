@@ -7,20 +7,22 @@ import { useWallet } from '../../contexto/WalletContext';
 import { COLORES } from '../../estilos/colores';
 import { PERSONAL } from '../../estilos/personalTema';
 import { FUENTE, ESPACIADO, RADIO } from '../../estilos/tema';
-import { confirmarAsync } from '../../utilidades/alertaPlataforma';
+import { confirmarYEntonces } from '../../utilidades/alertaPlataforma';
 
 const MasPersonal: React.FC = () => {
   const { usuario, cerrarSesion } = useAuth();
   const { walletSeleccionado, volverAElegirWorkspace, limpiar } = useWallet();
 
-  const confirmarCerrarSesion = async () => {
-    const ok = await confirmarAsync('Cerrar sesión', '¿Estás seguro?', {
-      textoAceptar: 'Cerrar sesión',
-      destructivo: true,
-    });
-    if (!ok) return;
-    limpiar();
-    await cerrarSesion();
+  const confirmarCerrarSesion = () => {
+    confirmarYEntonces(
+      'Cerrar sesión',
+      '¿Estás seguro?',
+      { textoAceptar: 'Cerrar sesión', destructivo: true },
+      async () => {
+        limpiar();
+        await cerrarSesion();
+      },
+    );
   };
 
   return (

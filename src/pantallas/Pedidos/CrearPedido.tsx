@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -207,16 +207,24 @@ const CrearPedido: React.FC<Props> = ({ navigation, route }) => {
   // Selección múltiple desde catálogo
   const [modalCatalogoMulti, setModalCatalogoMulti] = useState(false);
   const [seleccionados, setSeleccionados] = useState<Set<number>>(new Set());
+  const [avisoCarritoCatalogo, setAvisoCarritoCatalogo] = useState<string | null>(null);
+
+  /** Evita reaplicar el preset al refrescar `personas` (p. ej. tras `cargarPersonas`), que volvía a forzar «Compra». */
+  const presetInicialDesdeRutaListoRef = useRef(false);
 
   useEffect(() => {
-    if (route.params?.personaId) {
-      const p = personas.find((x) => x.id === route.params.personaId);
-      if (p) {
-        setPersonaSeleccionada(p);
-        setModoCreacion(p.tipo === 'cliente' ? 'venta_cliente' : 'compra');
-        if (p.tipo === 'proveedor') setProveedorSeleccionado(null);
-      }
-    }
+    presetInicialDesdeRutaListoRef.current = false;
+  }, [route.params?.personaId]);
+
+  useEffect(() => {
+    const pid = route.params?.personaId;
+    if (!pid || presetInicialDesdeRutaListoRef.current) return;
+    const p = personas.find((x) => x.id === pid);
+    if (!p) return;
+    presetInicialDesdeRutaListoRef.current = true;
+    setPersonaSeleccionada(p);
+    setModoCreacion(p.tipo === 'cliente' ? 'venta_cliente' : 'compra');
+    if (p.tipo === 'proveedor') setProveedorSeleccionado(null);
   }, [route.params?.personaId, personas]);
 
   useFocusEffect(
@@ -228,6 +236,11 @@ const CrearPedido: React.FC<Props> = ({ navigation, route }) => {
       const precargadas = consumirLineasSiTransferenciaPendiente();
       if (precargadas.length > 0) {
         setItems(precargadas.map(lineaCarritoCatalogoAItemForm));
+        setAvisoCarritoCatalogo(
+          `Se cargaron ${precargadas.length} ${precargadas.length === 1 ? 'línea' : 'líneas'} desde el carrito del catálogo.`,
+        );
+      } else {
+        setAvisoCarritoCatalogo(null);
       }
     }, [consumirLineasSiTransferenciaPendiente, cargarPersonas, walletSeleccionado]),
   );
@@ -395,6 +408,30 @@ const CrearPedido: React.FC<Props> = ({ navigation, route }) => {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+
+          {avisoCarritoCatalogo ? (
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: ESPACIADO.sm,
+                marginBottom: ESPACIADO.md,
+                padding: ESPACIADO.sm,
+                backgroundColor: COLORES.primarioClaro,
+                borderRadius: RADIO.md,
+                borderWidth: 1,
+                borderColor: `${COLORES.primario}55`,
+              }}
+            >
+              <Ionicons name="cart" size={22} color={COLORES.primario} />
+              <Text style={{ flex: 1, fontSize: FUENTE.tamanoPequeno, color: COLORES.texto, lineHeight: 20 }}>
+                {avisoCarritoCatalogo}
+              </Text>
+              <TouchableOpacity onPress={() => setAvisoCarritoCatalogo(null)} hitSlop={12} accessibilityLabel="Cerrar aviso">
+                <Ionicons name="close-circle" size={24} color={COLORES.textoSecundario} />
+              </TouchableOpacity>
+            </View>
+          ) : null}
 
           <SelectorModoCreacion valor={modoCreacion} onChange={setModoCreacion} />
 

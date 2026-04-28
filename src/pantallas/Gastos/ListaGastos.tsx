@@ -21,7 +21,7 @@ import { PERSONAL } from '../../estilos/personalTema';
 import { FUENTE, ESPACIADO, RADIO, estilosComunes } from '../../estilos/tema';
 import { useWallet } from '../../contexto/WalletContext';
 import { formatearMoneda, formatearFecha, esMesActual } from '../../utilidades/formato';
-import { confirmarAsync, mostrarAlerta } from '../../utilidades/alertaPlataforma';
+import { confirmarYEntonces, mostrarAlerta } from '../../utilidades/alertaPlataforma';
 
 type Props = NativeStackScreenProps<GastosStackParamList, 'ListaGastos'>;
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -58,18 +58,18 @@ const ListaGastos: React.FC<Props> = ({ navigation }) => {
 
   const handleEliminar = useCallback(
     (gasto: Gasto) => {
-      void (async () => {
-        const ok = await confirmarAsync('Eliminar gasto', `¿Eliminar "${gasto.descripcion}"?`, {
-          textoAceptar: 'Eliminar',
-          destructivo: true,
-        });
-        if (!ok) return;
-        try {
-          await eliminar(gasto.id);
-        } catch (e: unknown) {
-          mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo eliminar');
-        }
-      })();
+      confirmarYEntonces(
+        'Eliminar gasto',
+        `¿Eliminar "${gasto.descripcion}"?`,
+        { textoAceptar: 'Eliminar', destructivo: true },
+        async () => {
+          try {
+            await eliminar(gasto.id);
+          } catch (e: unknown) {
+            mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo eliminar');
+          }
+        },
+      );
     },
     [eliminar],
   );

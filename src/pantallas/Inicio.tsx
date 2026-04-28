@@ -24,6 +24,8 @@ import {
   pedidosRequierenAccionInicio,
   construirFilasPorPagar,
   ventasPorCobrarPendientes,
+  esVentaSoloProveedorSinCliente,
+  tituloVentaParaListado,
 } from '../utilidades/pagosPendientes';
 import { TabParamList } from '../navegacion/tipos';
 import EstadoBadge from '../componentes/EstadoBadge';
@@ -80,7 +82,7 @@ const Inicio: React.FC = () => {
     .filter((p) => p.tipo === 'compra')
     .reduce((acc, p) => acc + (p.resumen?.saldoPendiente ?? 0), 0);
   const totalPorPagarProveedorVentas = pedidos
-    .filter((p) => p.tipo === 'venta' && !!p.proveedorId)
+    .filter((p) => p.tipo === 'venta' && !!p.proveedorId && !esVentaSoloProveedorSinCliente(p))
     .reduce((acc, p) => acc + (p.resumen?.saldoProveedor ?? 0), 0);
   const totalPorPagar = totalPorPagarCompras + totalPorPagarProveedorVentas;
 
@@ -387,7 +389,10 @@ const Inicio: React.FC = () => {
             {pedidosPendientes.slice(0, 4).map((p) => {
               const esVenta = p.tipo === 'venta';
               const saldoCliente = p.resumen?.saldoPendiente ?? 0;
-              const saldoProv = (esVenta && p.proveedorId) ? (p.resumen?.saldoProveedor ?? 0) : 0;
+              const saldoProv =
+                esVenta && p.proveedorId && !esVentaSoloProveedorSinCliente(p)
+                  ? (p.resumen?.saldoProveedor ?? 0)
+                  : 0;
               const saldoMostrar = saldoCliente > 0 ? saldoCliente : saldoProv;
               const estadoMostrar = saldoCliente > 0
                 ? (p.resumen?.estado ?? 'pendiente')
@@ -414,7 +419,7 @@ const Inicio: React.FC = () => {
                     />
                   </View>
                   <View style={estilos.pendInfo}>
-                    <Text style={estilos.pendPersona}>{p.persona?.nombre ?? '—'}</Text>
+                    <Text style={estilos.pendPersona}>{tituloVentaParaListado(p)}</Text>
                     <Text style={estilos.pendFecha}>{formatearFecha(p.fecha)}</Text>
                   </View>
                   <View style={estilos.pendDer}>
