@@ -77,14 +77,12 @@ export function construirFilasPorPagar(pedidos: Pedido[]): FilaPorPagar[] {
   return out;
 }
 
-/** Ventas con saldo pendiente de cobro al cliente (misma base que el total «Por cobrar» de ventas en Inicio). */
+/** Ventas con saldo pendiente de cobro (usa `resumen.saldoPendiente` del API). */
 export function ventasPorCobrarPendientes(pedidos: Pedido[]): { pedido: Pedido; saldo: number }[] {
   const out: { pedido: Pedido; saldo: number }[] = [];
   for (const p of pedidos) {
     if (p.tipo !== 'venta') continue;
-    const total = p.resumen?.totalVenta ?? 0;
-    const pagado = p.resumen?.totalPagado ?? 0;
-    const saldo = Math.max(0, total - pagado);
+    const saldo = p.resumen?.saldoPendiente ?? 0;
     if (saldo > 0) out.push({ pedido: p, saldo });
   }
   out.sort((a, b) => new Date(b.pedido.fecha).getTime() - new Date(a.pedido.fecha).getTime());

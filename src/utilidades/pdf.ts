@@ -166,6 +166,9 @@ const CSS_BASE = `
 const estadoBadge = (estado?: string) =>
   `<span class="badge ${estado ?? 'pendiente'}">${estado === 'pagado' ? 'Pagado' : estado === 'parcial' ? 'Parcial' : 'Pendiente'}</span>`;
 
+const estadoBadgeLadoCobro = (estado?: string) =>
+  `<span class="badge ${estado ?? 'pendiente'}">${estado === 'pagado' ? 'Cobrado' : estado === 'parcial' ? 'Cobro parcial' : 'Sin cobrar'}</span>`;
+
 /** Evita romper el HTML si el usuario escribe &lt; etc. en el nombre del pedido */
 const escaparHtml = (s: string): string =>
   s
@@ -267,8 +270,10 @@ const generarHTMLCliente = (pedido: Pedido, perfil?: PerfilEmpresa | null): stri
   const montoIva = resumen?.montoImpuestoVenta ?? montoIvaFallback;
   const total = resumen?.totalVenta ?? subtotal + montoIva;
   const totalPagado = resumen?.totalPagado ?? 0;
-  const saldo = Math.max(0, total - totalPagado);
+  const refSaldo = resumen?.referenciaSaldoCliente ?? total;
+  const saldo = resumen?.saldoPendiente ?? Math.max(0, refSaldo - totalPagado);
   const colorSaldo = saldo > 0 ? '#DC2626' : '#16A34A';
+  const esVentaIntermediacion = pedido.tipo === 'venta' && !pedido.persona && !!pedido.proveedorId;
   const filasIva =
     montoIva > 0 && pedido.impuesto != null
       ? `<tr><td colspan="3" class="right" style="color:#64748B;">Subtotal ítems</td><td class="right">${formatearMoneda(subtotal)}</td></tr>
@@ -296,19 +301,19 @@ const generarHTMLCliente = (pedido: Pedido, perfil?: PerfilEmpresa | null): stri
   ${cabeceraEmpresaCompactaHtml(perfil)}
   <h1>${tituloPedidoPdf(pedido, 'Cliente')}</h1>
   <p class="meta">Fecha: ${formatearFecha(pedido.fecha)}</p>
-  <p class="meta">Cliente: <strong>${pedido.persona?.nombre ?? '-'}</strong> <span class="badge cliente" style="margin-left:6px;">Cliente</span></p>
+  <p class="meta">Cliente: <strong>${pedido.persona?.nombre?.trim() ? pedido.persona.nombre : esVentaIntermediacion ? (pedido.proveedor?.nombre ?? 'Proveedor') : '-'}</strong> <span class="badge cliente" style="margin-left:6px;">${esVentaIntermediacion ? 'Venta proveedor' : 'Cliente'}</span></p>
   ${metaNitPersonaHtml(pedido.persona?.nit)}
-  <p class="meta">Estado: ${estadoBadge(resumen?.estado)}</p>
+  <p class="meta">Estado: ${esVentaIntermediacion ? estadoBadgeLadoCobro(resumen?.estado) : estadoBadge(resumen?.estado)}</p>
   <h2>Ítems</h2>
   <table><thead><tr><th>Nombre</th><th class="center">Cant.</th><th class="right">Precio</th><th class="right">Subtotal</th></tr></thead>
   <tbody>${filasItems}</tbody>
   <tfoot>
     ${filasIva}
     <tr class="total-row"><td colspan="3" class="right">${montoIva > 0 ? 'Total a cobrar' : 'Total'}</td><td class="right">${formatearMoneda(total)}</td></tr>
-    <tr><td colspan="3" class="right" style="color:#64748B;">Total Pagado</td><td class="right" style="color:#16A34A;">${formatearMoneda(totalPagado)}</td></tr>
-    <tr><td colspan="3" class="right" style="font-weight:700;">Saldo Pendiente</td><td class="right" style="font-weight:700;color:${colorSaldo};">${formatearMoneda(saldo)}</td></tr>
+    <tr><td colspan="3" class="right" style="color:#64748B;">${esVentaIntermediacion ? 'Total repartido' : 'Total pagado'}</td><td class="right" style="color:#16A34A;">${formatearMoneda(totalPagado)}</td></tr>
+    <tr><td colspan="3" class="right" style="font-weight:700;">${esVentaIntermediacion ? 'Pendiente (margen)' : 'Saldo pendiente'}</td><td class="right" style="font-weight:700;color:${colorSaldo};">${formatearMoneda(saldo)}</td></tr>
   </tfoot></table>
-  <h2>Pagos recibidos</h2>${filasPagos}
+  <h2>${esVentaIntermediacion ? 'Repartos recibidos' : 'Pagos recibidos'}</h2>${filasPagos}
   <p class="footer">Generado el ${new Date().toLocaleDateString('es-GT')}</p>
   </body></html>`;
 };
@@ -317,10 +322,22 @@ const generarHTMLCliente = (pedido: Pedido, perfil?: PerfilEmpresa | null): stri
 
 const generarHTMLProveedor = (pedido: Pedido, perfil?: PerfilEmpresa | null): string => {
   const resumen = pedido.resumen;
-  const total = resumen?.totalCompra ?? 0;
-  const totalPagado = resumen?.totalPagadoProveedor ?? 0;
-  const saldo = Math.max(0, total - totalPagado);
-  const colorSaldo = saldo > 0 ? '#DC2626' : '#16A34A';
+  const totalCompra = resumen?.totalCompra ?? 0;
+  const totalPagadoProveedorResumen = resumen?.totalPagadoProveedor ?? 0;
+  const saldoCostoApp = Math.max(0, totalCompra - totalPagadoProveedorResumen);
+  const colorSaldo = saldoCostoApp > 0 ? '#DC2626' : '#16A34A';
+
+  const listaProv = pedido.pagosProveedor ?? [];
+  const listaLiquidaCosto = listaProv.filter((p) => p.tipo !== 'ingreso_cliente_a_proveedor');
+  const abonosCosto = listaLiquidaCosto.filter((p) => (p.tipo ?? 'pago') === 'pago').reduce((a, p) => a + p.monto, 0);
+  const cobrosCosto = listaLiquidaCosto.filter((p) => p.tipo === 'cobro').reduce((a, p) => a + p.monto, 0);
+
+  const totalIngresosClientes = listaProv
+    .filter((p) => p.tipo === 'ingreso_cliente_a_proveedor')
+    .reduce((a, p) => a + p.monto, 0);
+  const totalRepartosIntermediario = (pedido.pagos ?? []).reduce((a, p) => a + p.monto, 0);
+
+  const esVentaIntermediacionPdf = pedido.tipo === 'venta' && !pedido.persona && !!pedido.proveedorId;
 
   const filasItems = (pedido.items ?? []).map((item) => {
     const subtotal = item.cantidad * item.precioCompra;
@@ -332,15 +349,60 @@ const generarHTMLProveedor = (pedido: Pedido, perfil?: PerfilEmpresa | null): st
     </tr>`;
   }).join('');
 
-  const filasPagos = (pedido.pagosProveedor ?? []).length === 0
+  const filasPagos = listaProv.length === 0
     ? '<p style="color:#64748B;font-size:13px;">Sin movimientos registrados.</p>'
     : `<table><thead><tr><th>Fecha</th><th>Tipo</th><th class="right">Monto</th></tr></thead><tbody>
-        ${(pedido.pagosProveedor ?? []).map((p) => {
+        ${listaProv.map((p) => {
+          const esIngreso = p.tipo === 'ingreso_cliente_a_proveedor';
           const esCobro = p.tipo === 'cobro';
-          const tipoTxt = esCobro ? 'Cobro (te pagó)' : 'Pago (le pagaste)';
+          const tipoTxt = esIngreso
+            ? 'Ingreso clientes al proveedor'
+            : esCobro
+              ? 'Cobro (te pagó)'
+              : 'Pago (le pagaste)';
           return `<tr><td>${formatearFecha(p.fecha)}</td><td style="font-size:12px;">${tipoTxt}</td><td class="right">${formatearMoneda(p.monto)}</td></tr>`;
         }).join('')}
       </tbody></table>`;
+
+  const filasRepartosInter =
+    (pedido.pagos ?? []).length === 0
+      ? '<p style="color:#64748B;font-size:13px;">Sin repartos registrados.</p>'
+      : `<table><thead><tr><th>Fecha</th><th class="right">Monto</th></tr></thead><tbody>
+          ${(pedido.pagos ?? [])
+            .map(
+              (p) =>
+                `<tr><td>${formatearFecha(p.fecha)}</td><td class="right" style="color:#16A34A;">${formatearMoneda(p.monto)}</td></tr>`,
+            )
+            .join('')}
+        </tbody>
+        <tfoot>
+          <tr><td style="font-weight:700;">Total repartido al intermediario</td><td class="right" style="font-weight:700;color:#16A34A;">${formatearMoneda(totalRepartosIntermediario)}</td></tr>
+        </tfoot>
+      </table>`;
+
+  const tfootResumen = esVentaIntermediacionPdf
+    ? `<tfoot>
+    <tr class="total-row"><td colspan="3" class="right">Total costo ítems</td><td class="right">${formatearMoneda(totalCompra)}</td></tr>
+    <tr><td colspan="3" class="right" style="color:#64748B;">Clientes pagaron al proveedor (registrado)</td><td class="right" style="color:#2563EB;">${formatearMoneda(totalIngresosClientes)}</td></tr>
+    <tr><td colspan="3" class="right" style="color:#64748B;">Repartos al intermediario (registrado)</td><td class="right" style="color:#16A34A;">${formatearMoneda(totalRepartosIntermediario)}</td></tr>
+    <tr><td colspan="3" class="right" style="color:#64748B;font-size:12px;">Liquidación costo (app): pagaste ${formatearMoneda(abonosCosto)} · cobros del proveedor ${formatearMoneda(cobrosCosto)} · Total aplicado al costo</td><td class="right" style="color:#7C3AED;">${formatearMoneda(totalPagadoProveedorResumen)}</td></tr>
+    <tr><td colspan="3" class="right" style="font-weight:700;">Saldo costo pendiente (app)</td><td class="right" style="font-weight:700;color:${colorSaldo};">${formatearMoneda(saldoCostoApp)}</td></tr>
+  </tfoot>`
+    : `<tfoot>
+    <tr class="total-row"><td colspan="3" class="right">Total a pagar</td><td class="right">${formatearMoneda(totalCompra)}</td></tr>
+    <tr><td colspan="3" class="right" style="color:#64748B;">Ya pagado</td><td class="right" style="color:#16A34A;">${formatearMoneda(totalPagadoProveedorResumen)}</td></tr>
+    <tr><td colspan="3" class="right" style="font-weight:700;">Saldo Pendiente</td><td class="right" style="font-weight:700;color:${colorSaldo};">${formatearMoneda(saldoCostoApp)}</td></tr>
+  </tfoot>`;
+
+  const metaEstado = esVentaIntermediacionPdf
+    ? `<p class="meta">Estado reparto / margen: ${estadoBadgeLadoCobro(resumen?.estado)}</p>
+  <p class="meta">Estado liquidación costo (app): ${estadoBadge(resumen?.estadoProveedor)}</p>
+  <p class="meta" style="font-size:12px;">En venta con proveedor, «ingresos de clientes» son referencia de flujo; no sustituyen el costo ítems salvo que registres pagos/cobros de costo.</p>`
+    : `<p class="meta">Estado pago: ${estadoBadge(resumen?.estadoProveedor)}</p>`;
+
+  const bloqueRepartos = esVentaIntermediacionPdf
+    ? `<h2>Repartos al intermediario</h2>${filasRepartosInter}`
+    : '';
 
   return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"/>
   <style>${CSS_BASE} h1 { color:#7C3AED; }</style></head><body>
@@ -349,16 +411,13 @@ const generarHTMLProveedor = (pedido: Pedido, perfil?: PerfilEmpresa | null): st
   <p class="meta">Fecha: ${formatearFecha(pedido.fecha)}</p>
   <p class="meta">Proveedor: <strong>${pedido.proveedor?.nombre ?? '-'}</strong> <span class="badge proveedor" style="margin-left:6px;">Proveedor</span></p>
   ${metaNitPersonaHtml(pedido.proveedor?.nit)}
-  <p class="meta">Estado pago: ${estadoBadge(resumen?.estadoProveedor)}</p>
+  ${metaEstado}
   <h2>Ítems (precio de costo)</h2>
   <table><thead><tr><th>Nombre</th><th class="center">Cant.</th><th class="right">Costo unit.</th><th class="right">Subtotal</th></tr></thead>
   <tbody>${filasItems}</tbody>
-  <tfoot>
-    <tr class="total-row"><td colspan="3" class="right">Total a pagar</td><td class="right">${formatearMoneda(total)}</td></tr>
-    <tr><td colspan="3" class="right" style="color:#64748B;">Ya pagado</td><td class="right" style="color:#16A34A;">${formatearMoneda(totalPagado)}</td></tr>
-    <tr><td colspan="3" class="right" style="font-weight:700;">Saldo Pendiente</td><td class="right" style="font-weight:700;color:${colorSaldo};">${formatearMoneda(saldo)}</td></tr>
-  </tfoot></table>
+  ${tfootResumen}</table>
   <h2>Movimientos con el proveedor</h2>${filasPagos}
+  ${bloqueRepartos}
   <p class="footer">Generado el ${new Date().toLocaleDateString('es-GT')}</p>
   </body></html>`;
 };
@@ -377,9 +436,11 @@ const generarHTMLCompleto = (pedido: Pedido, perfil?: PerfilEmpresa | null): str
   const cobradoCliente = resumen?.totalPagado ?? 0;
   const pagadoProveedor = resumen?.totalPagadoProveedor ?? 0;
   const listaProv = pedido.pagosProveedor ?? [];
-  const abonosProvPdf = listaProv.filter((p) => (p.tipo ?? 'pago') === 'pago').reduce((a, p) => a + p.monto, 0);
-  const cobrosProvPdf = listaProv.filter((p) => p.tipo === 'cobro').reduce((a, p) => a + p.monto, 0);
-  const saldoCliente = Math.max(0, totalVenta - cobradoCliente);
+  const listaProvLiquidaCosto = listaProv.filter((p) => p.tipo !== 'ingreso_cliente_a_proveedor');
+  const abonosProvPdf = listaProvLiquidaCosto.filter((p) => (p.tipo ?? 'pago') === 'pago').reduce((a, p) => a + p.monto, 0);
+  const cobrosProvPdf = listaProvLiquidaCosto.filter((p) => p.tipo === 'cobro').reduce((a, p) => a + p.monto, 0);
+  const refClientePdf = resumen?.referenciaSaldoCliente ?? totalVenta;
+  const saldoCliente = resumen?.saldoPendiente ?? Math.max(0, refClientePdf - cobradoCliente);
   const saldoProveedor = Math.max(0, totalCompra - pagadoProveedor);
   const margenPotencial = totalVenta - totalCompra;
   const filasTotalesVentaIva =
@@ -389,6 +450,12 @@ const generarHTMLCompleto = (pedido: Pedido, perfil?: PerfilEmpresa | null): str
       : '';
   const gananciaReal = cobradoCliente - abonosProvPdf + cobrosProvPdf;
   const colorGanancia = gananciaReal >= 0 ? '#16A34A' : '#DC2626';
+  const nombreClienteCompleto =
+    pedido.persona?.nombre?.trim()
+      ? pedido.persona.nombre
+      : pedido.tipo === 'venta' && pedido.proveedor
+        ? pedido.nombreReferencia?.trim() || pedido.proveedor.nombre || 'Venta proveedor'
+        : '-';
 
   const filasItems = (pedido.items ?? []).map((item) => `<tr>
     <td>${item.nombre}</td>
@@ -403,9 +470,10 @@ const generarHTMLCompleto = (pedido: Pedido, perfil?: PerfilEmpresa | null): str
   ).join('');
 
   const filasPagosProveedor = (pedido.pagosProveedor ?? []).map((p) => {
+    const esIngreso = p.tipo === 'ingreso_cliente_a_proveedor';
     const esCobro = p.tipo === 'cobro';
-    const tipoTxt = esCobro ? 'Cobro' : 'Pago';
-    const col = esCobro ? '#16A34A' : '#7C3AED';
+    const tipoTxt = esIngreso ? 'Ingreso clientes' : esCobro ? 'Cobro' : 'Pago';
+    const col = esIngreso ? '#2563EB' : esCobro ? '#16A34A' : '#7C3AED';
     return `<tr><td>${formatearFecha(p.fecha)}</td><td style="font-size:12px;color:${col};">${tipoTxt}</td><td class="right" style="color:${col};">${formatearMoneda(p.monto)}</td></tr>`;
   }).join('');
 
@@ -422,7 +490,7 @@ const generarHTMLCompleto = (pedido: Pedido, perfil?: PerfilEmpresa | null): str
   <h1>${tituloPedidoPdf(pedido, 'Resumen Completo')}</h1>
   <p class="meta">Fecha: ${formatearFecha(pedido.fecha)}</p>
   <p class="meta">
-    Cliente: <strong>${pedido.persona?.nombre ?? '-'}</strong>
+    Cliente: <strong>${escaparHtml(nombreClienteCompleto)}</strong>
     &nbsp;·&nbsp;
     Proveedor: <strong>${pedido.proveedor?.nombre ?? '-'}</strong>
   </p>
@@ -818,9 +886,20 @@ export const generarYCompartirPDF = async (
   tipo: TipoPDF = 'cliente',
   perfil?: PerfilEmpresa | null,
 ): Promise<void> => {
-  if (!pedido.persona) {
+  const ventaIntermediacionSinClienteEnApp =
+    pedido.tipo === 'venta' &&
+    (pedido.personaId == null || pedido.personaId === undefined) &&
+    pedido.persona == null &&
+    !!pedido.proveedorId;
+
+  if (!pedido.persona && !ventaIntermediacionSinClienteEnApp) {
     throw new Error('El pedido no tiene persona asociada.');
   }
+
+  if (tipo === 'cotizacion' && !pedido.persona) {
+    throw new Error('La cotización requiere un cliente asociado al pedido.');
+  }
+
   if ((tipo === 'proveedor' || tipo === 'completo') && !pedido.proveedor) {
     throw new Error('Este pedido no tiene proveedor asociado para generar este tipo de PDF.');
   }

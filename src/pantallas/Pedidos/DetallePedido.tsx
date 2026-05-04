@@ -98,7 +98,6 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
   const [metaNombre, setMetaNombre] = useState('');
   const [metaImpuesto, setMetaImpuesto] = useState('');
   const [guardandoMeta, setGuardandoMeta] = useState(false);
-
   useFocusEffect(
     useCallback(() => {
       cargar();
@@ -154,7 +153,7 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
     if (!pedido?.resumen) return;
     const r = pedido.resumen;
     const esV = pedido.tipo === 'venta';
-    const tot = esV ? (r.totalVenta ?? 0) : (r.totalCompra ?? 0);
+    const tot = esV ? (r.referenciaSaldoCliente ?? r.totalVenta ?? 0) : (r.totalCompra ?? 0);
     const totalPag = r.totalPagado ?? 0;
     const saldoPendiente = r.saldoPendiente ?? Math.max(0, tot - totalPag);
     const monto = parsearNumero(montoPago);
@@ -219,10 +218,19 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
   };
 
   const handleEliminarPagoProveedor = (pagoId: number, monto: number, tipoMov?: TipoPagoProveedor) => {
+    const esIngresoCliente = tipoMov === 'ingreso_cliente_a_proveedor';
     const esCobro = tipoMov === 'cobro';
+    const tituloModal = esIngresoCliente
+      ? 'Eliminar ingreso al proveedor'
+      : esCobro
+        ? 'Eliminar cobro del proveedor'
+        : 'Eliminar pago al proveedor';
+    const cuerpoModal = esIngresoCliente
+      ? `¿Eliminar el ingreso registrado de ${formatearMoneda(monto)}?`
+      : `¿Eliminar el ${esCobro ? 'cobro' : 'pago'} de ${formatearMoneda(monto)}?`;
     confirmarYEntonces(
-      esCobro ? 'Eliminar cobro del proveedor' : 'Eliminar pago al proveedor',
-      `¿Eliminar el ${esCobro ? 'cobro' : 'pago'} de ${formatearMoneda(monto)}?`,
+      tituloModal,
+      cuerpoModal,
       { textoAceptar: 'Eliminar', destructivo: true },
       async () => {
         try {
@@ -326,7 +334,7 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
     if (!pedido) {
       return { abonosProveedor: 0, cobrosProveedor: 0, netoEgresoProveedor: 0, utilidadRealProveedor: 0 };
     }
-    const lista = pedido.pagosProveedor ?? [];
+    const lista = (pedido.pagosProveedor ?? []).filter((p) => p.tipo !== 'ingreso_cliente_a_proveedor');
     const abonos = lista.filter((p) => (p.tipo ?? 'pago') === 'pago').reduce((a, p) => a + p.monto, 0);
     const cobros = lista.filter((p) => p.tipo === 'cobro').reduce((a, p) => a + p.monto, 0);
     const neto = abonos - cobros;
@@ -337,6 +345,15 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
       netoEgresoProveedor: neto,
       utilidadRealProveedor: totalPagadoCliente - neto,
     };
+  }, [pedido]);
+
+  const maxIngresoClienteProveedor = useMemo(() => {
+    if (!pedido?.resumen) return 0;
+    const totalVentaRef = pedido.resumen.totalVenta ?? 0;
+    const yaIngresos = (pedido.pagosProveedor ?? [])
+      .filter((p) => p.tipo === 'ingreso_cliente_a_proveedor')
+      .reduce((a, p) => a + p.monto, 0);
+    return Math.max(0, totalVentaRef - yaIngresos);
   }, [pedido]);
 
   const abrirModalProveedor = useCallback((tipo: TipoPagoProveedor) => {
@@ -360,6 +377,24 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
     if (monto <= 0) {
       mostrarAlerta('Monto inválido', 'El monto debe ser mayor a 0');
       return;
+    }
+    if (tipoMovimientoProveedor === 'ingreso_cliente_a_proveedor') {
+      const totalVentaRef = pedido.resumen.totalVenta ?? 0;
+      const yaIngresos = (pedido.pagosProveedor ?? [])
+        .filter((p) => p.tipo === 'ingreso_cliente_a_proveedor')
+        .reduce((a, p) => a + p.monto, 0);
+      const maxIng = Math.max(0, totalVentaRef - yaIngresos);
+      if (monto > maxIng + 0.01) {
+        confirmarYEntonces(
+          'Supera el tope',
+          `La suma de «cliente pagó al proveedor» no puede pasar el total de venta (${formatearMoneda(totalVentaRef)}). Ya registrado: ${formatearMoneda(yaIngresos)}. Máximo ahora: ${formatearMoneda(maxIng)}.\n\n¿Usar ${formatearMoneda(maxIng)}?`,
+          { textoAceptar: 'Usar máximo' },
+          () => {
+            if (maxIng > 0) setMontoPagoProveedor(String(maxIng));
+          },
+        );
+        return;
+      }
     }
     if (tipoMovimientoProveedor === 'pago' && monto > saldoProv) {
       confirmarYEntonces(
@@ -402,9 +437,12 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
   const montoIvaCliente = resumen?.montoImpuestoVenta ?? 0;
   const total = esVenta ? (resumen?.totalVenta ?? 0) : (resumen?.totalCompra ?? 0);
   const totalPagado = resumen?.totalPagado ?? 0;
-  const saldo = resumen?.saldoPendiente ?? Math.max(0, total - totalPagado);
+  const referenciaCobroCliente =
+    resumen?.referenciaSaldoCliente ?? (esVenta ? (resumen?.totalVenta ?? 0) : (resumen?.totalCompra ?? 0));
+  const saldo = resumen?.saldoPendiente ?? Math.max(0, referenciaCobroCliente - totalPagado);
   const estaPagado = resumen?.estado === 'pagado';
-  const porcentajePagado = total > 0 ? Math.min(100, Math.round((totalPagado / total) * 100)) : 0;
+  const porcentajePagado =
+    referenciaCobroCliente > 0 ? Math.min(100, Math.round((totalPagado / referenciaCobroCliente) * 100)) : 0;
 
   // Proveedor asociado
   const tieneProveedor = !!pedido.proveedorId;
@@ -415,8 +453,30 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
   const saldoProveedor = resumen?.saldoProveedor ?? Math.max(0, totalCostoProveedor - totalPagadoProveedor);
   const estaProveedorPagado = resumen?.estadoProveedor === 'pagado';
   const porcentajeProveedorPagado = totalCostoProveedor > 0 ? Math.min(100, Math.round((totalPagadoProveedor / totalCostoProveedor) * 100)) : 0;
-  /** Cobro al proveedor solo aplica a venta sin cliente conocido; con cliente queda solo «Pagar». */
-  const permitirRegistrarCobroProveedor = esVenta && sinClienteVenta;
+
+  const mostrarTarjetaProveedorVentaSolo = sinClienteVenta && tieneProveedor;
+  const pagosProvLista = pedido.pagosProveedor ?? [];
+  const pagosProveedorLiquidaCosto = pagosProvLista.filter((p) => p.tipo !== 'ingreso_cliente_a_proveedor');
+  const pagosProveedorSoloIngreso = pagosProvLista.filter((p) => p.tipo === 'ingreso_cliente_a_proveedor');
+  const totalIngresosClientesAlProveedor = pagosProveedorSoloIngreso.reduce((a, p) => a + p.monto, 0);
+
+  const metaReferenciaIgualQueHero =
+    mostrarTarjetaProveedorVentaSolo &&
+    (pedido.nombreReferencia?.trim() ?? '').length > 0 &&
+    tituloHeroPersona === (pedido.nombreReferencia?.trim() ?? '');
+
+  const etiquetaSaldoHero =
+    sinClienteVenta && tieneProveedor
+      ? estaPagado
+        ? 'Total acordado'
+        : 'Te debe el proveedor'
+      : estaPagado
+        ? 'Total cobrado'
+        : 'Saldo pendiente';
+  const etiquetaProgresoHero =
+    sinClienteVenta && tieneProveedor
+      ? `${formatearMoneda(totalPagado)} que te repartió · ${porcentajePagado}%`
+      : `${formatearMoneda(totalPagado)} pagado · ${porcentajePagado}%`;
 
   const { abonosProveedor, cobrosProveedor, netoEgresoProveedor, utilidadRealProveedor } = proveedorMetrics;
 
@@ -452,13 +512,13 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
               </View>
             </View>
             <View style={estilos.heroEstadoBox}>
-              <EstadoBadge estado={resumen?.estado ?? 'pendiente'} grande />
+              <EstadoBadge estado={resumen?.estado ?? 'pendiente'} grande varianteCobro={sinClienteVenta && tieneProveedor} />
             </View>
           </View>
 
           <View style={estilos.heroMontoFila}>
             <View style={{ flex: 1, minWidth: 0, marginRight: ESPACIADO.sm }}>
-              <Text style={estilos.heroLabel}>{estaPagado ? 'Total cobrado' : 'Saldo pendiente'}</Text>
+              <Text style={estilos.heroLabel}>{etiquetaSaldoHero}</Text>
               <Text style={estilos.heroMonto} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
                 {estaPagado ? formatearMoneda(total) : formatearMoneda(saldo)}
               </Text>
@@ -469,12 +529,12 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
             </View>
           </View>
 
-          {!estaPagado && total > 0 && (
+          {!estaPagado && referenciaCobroCliente > 0 && (
             <View style={estilos.progresoWrapper}>
               <View style={estilos.progresoBar}>
                 <View style={[estilos.progresoFill, { width: `${porcentajePagado}%` as any }]} />
               </View>
-              <Text style={estilos.progresoTexto}>{formatearMoneda(totalPagado)} pagado · {porcentajePagado}%</Text>
+              <Text style={estilos.progresoTexto}>{etiquetaProgresoHero}</Text>
             </View>
           )}
         </View>
@@ -482,10 +542,21 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
         {/* Referencia e impuesto (listas, PDF, cotización) */}
         <View style={estilosLocales.metaCard}>
           <View style={{ flex: 1, paddingRight: ESPACIADO.sm }}>
-            <Text style={estilosLocales.metaLabel}>Nombre o referencia</Text>
-            <Text style={estilosLocales.metaValor} numberOfLines={2}>
-              {pedido.nombreReferencia?.trim() || 'Sin definir'}
-            </Text>
+            {metaReferenciaIgualQueHero ? (
+              <>
+                <Text style={estilosLocales.metaLabel}>Referencia</Text>
+                <Text style={[estilosLocales.metaValor, { color: COLORES.textoSecundario }]} numberOfLines={2}>
+                  Es la misma que ves en el encabezado morado; podés editarla con el lápiz.
+                </Text>
+              </>
+            ) : (
+              <>
+                <Text style={estilosLocales.metaLabel}>Nombre o referencia</Text>
+                <Text style={estilosLocales.metaValor} numberOfLines={2}>
+                  {pedido.nombreReferencia?.trim() || 'Sin definir'}
+                </Text>
+              </>
+            )}
             <Text style={[estilosLocales.metaLabel, { marginTop: ESPACIADO.sm }]}>Impuesto (ventas: suma al total a cobrar)</Text>
             <Text style={estilosLocales.metaValor}>
               {pedido.impuesto != null && pedido.impuesto > 0 ? `${pedido.impuesto}%` : 'Sin impuesto'}
@@ -562,157 +633,245 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
                 </>
               )}
               <View style={estilos.totalFila}>
-                <Text style={estilos.totalEtiqueta}>{esVenta && montoIvaCliente > 0 ? 'Total a cobrar' : 'Total'}</Text>
+                <Text style={estilos.totalEtiqueta}>
+                  {esVenta && montoIvaCliente > 0 ? 'Total a cobrar' : mostrarTarjetaProveedorVentaSolo ? 'Total venta' : 'Total'}
+                </Text>
                 <Text style={estilos.totalValor}>{formatearMoneda(total)}</Text>
               </View>
             </>
           )}
         </View>
 
-        {/* Pagos */}
-        <View style={estilos.card}>
-          <View style={estilos.cardHeader}>
-            <Text style={estilos.cardTitulo}>Pagos registrados</Text>
-            <View style={estilos.cardCount}>
-              <Text style={estilos.cardCountTexto}>{pedido.pagos?.length ?? 0}</Text>
-            </View>
-          </View>
-          {(pedido.pagos ?? []).length === 0 ? (
-            <View style={estilos.sinDatosBox}>
-              <Ionicons name="receipt-outline" size={24} color={COLORES.textoDeshabilitado} />
-              <Text style={estilos.sinDatos}>Sin pagos aún</Text>
-            </View>
-          ) : (
-            (pedido.pagos ?? []).map((pago, idx) => {
-              const esUltimo = idx === (pedido.pagos?.length ?? 0) - 1;
-              return (
-                <View key={pago.id} style={[estilos.pagoFila, esUltimo && { borderBottomWidth: 0 }]}>
-                  <View style={estilos.pagoIconBox}>
-                    <Ionicons name="checkmark-circle" size={16} color={COLORES.exito} />
-                  </View>
-                  <Text style={estilos.pagoFecha}>{formatearFecha(pago.fecha)}</Text>
-                  <Text style={[estilos.pagoMonto, { flex: 1 }]}>{formatearMoneda(pago.monto)}</Text>
-                  <TouchableOpacity onPress={() => handleEliminarPago(pago.id, pago.monto)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Ionicons name="trash-outline" size={15} color={COLORES.peligro} />
-                  </TouchableOpacity>
-                </View>
-              );
-            })
-          )}
-        </View>
-
-        {/* Proveedor asociado (solo ventas con proveedor) */}
-        {mostrarLadoProveedorCosto && (
-          <View style={[estilos.card, estilosLocales.cardProveedor]}>
-            <View style={estilos.cardHeader}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: ESPACIADO.sm }}>
-                <Ionicons name="business-outline" size={16} color={COLORES.proveedor} />
-                <Text style={[estilos.cardTitulo, { color: COLORES.proveedor }]}>Proveedor</Text>
-              </View>
-              <EstadoBadge estado={resumen?.estadoProveedor ?? 'pendiente'} />
-            </View>
-
-            {/* Info del proveedor */}
-            <View style={estilosLocales.proveedorNombreBox}>
-              <View style={[estilosLocales.proveedorAvatar, { backgroundColor: COLORES.proveedorClaro }]}>
-                <Text style={[estilosLocales.proveedorAvatarLetra, { color: COLORES.proveedor }]}>
-                  {(pedido.proveedor?.nombre ?? '?').charAt(0).toUpperCase()}
+        {mostrarTarjetaProveedorVentaSolo ? (
+          <View style={estilos.card}>
+            <View style={estilosLocales.margenCabeceraPlegable}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={estilos.cardTitulo}>Control con {pedido.proveedor?.nombre ?? 'proveedor'}</Text>
+                <Text style={estilosLocales.margenResumenCompacto} numberOfLines={2}>
+                  Pendiente tu parte {formatearMoneda(saldo)} · Tope {formatearMoneda(referenciaCobroCliente)}
                 </Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={estilosLocales.proveedorNombre}>{pedido.proveedor?.nombre ?? '—'}</Text>
-                <Text style={estilosLocales.proveedorSub}>
-                  {estaProveedorPagado ? 'Pago completado' : `Saldo pendiente: ${formatearMoneda(saldoProveedor)}`}
+                <Text style={estilosLocales.margenResumenCompactoSec} numberOfLines={2}>
+                  Clientes→él {formatearMoneda(totalIngresosClientesAlProveedor)} · Recibido {formatearMoneda(totalPagado)}
                 </Text>
               </View>
             </View>
 
-            {/* Barra de progreso */}
-            {!estaProveedorPagado && totalCostoProveedor > 0 && (
-              <View style={estilosLocales.progresoProveedorWrapper}>
-                <View style={estilos.progresoBar}>
-                  <View style={[estilos.progresoFill, estilosLocales.progresoProveedorFill, { width: `${porcentajeProveedorPagado}%` as any }]} />
-                </View>
-                <Text style={estilosLocales.progresoProveedorTexto}>{formatearMoneda(totalPagadoProveedor)} pagado · {porcentajeProveedorPagado}%</Text>
-              </View>
-            )}
-
-            {/* Totales */}
-            <View style={estilosLocales.totalesProveedor}>
-              <View style={estilosLocales.totalProveedorItem}>
-                <Text style={estilosLocales.totalProveedorLabel}>Costo total</Text>
-                <Text style={estilosLocales.totalProveedorValor}>{formatearMoneda(totalCostoProveedor)}</Text>
-              </View>
-              <View style={estilosLocales.totalProveedorItem}>
-                <Text style={estilosLocales.totalProveedorLabel}>Pagado</Text>
-                <Text style={[estilosLocales.totalProveedorValor, { color: COLORES.exito }]}>{formatearMoneda(totalPagadoProveedor)}</Text>
-              </View>
-              <View style={estilosLocales.totalProveedorItem}>
-                <Text style={estilosLocales.totalProveedorLabel}>Pendiente</Text>
-                <Text style={[estilosLocales.totalProveedorValor, { color: estaProveedorPagado ? COLORES.exito : COLORES.proveedor }]}>{formatearMoneda(saldoProveedor)}</Text>
-              </View>
+            <View style={estilosLocales.margenAccionesFila}>
+              <TouchableOpacity
+                style={[estilosLocales.margenBotonSec, { flex: 1 }]}
+                onPress={() => abrirModalProveedor('ingreso_cliente_a_proveedor')}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="person-add-outline" size={18} color={COLORES.primario} />
+                <Text style={estilosLocales.margenBotonSecTexto}>Cliente pagó</Text>
+              </TouchableOpacity>
             </View>
 
-            {/* Pagos al proveedor */}
-            {(pedido.pagosProveedor ?? []).length > 0 && (
-              <View style={estilosLocales.pagosProveedorLista}>
-                <Text style={estilosLocales.pagosProveedorTitulo}>Movimientos con el proveedor</Text>
-                {(pedido.pagosProveedor ?? []).map((pago, idx) => {
-                  const esUltimo = idx === (pedido.pagosProveedor?.length ?? 0) - 1;
-                  const esCobroMov = pago.tipo === 'cobro';
+            {/* Historial 1: dinero que clientes finales le pagaron al proveedor (referencia de flujo). */}
+            <View style={[estilosLocales.margenDetalleSep, { paddingHorizontal: ESPACIADO.md }]}>
+              <Text style={estilosLocales.pagosProveedorTitulo}>Cliente pagó al proveedor</Text>
+              <Text style={[estilosLocales.proveedorSub, { marginBottom: ESPACIADO.sm }]} numberOfLines={2}>
+                Historial aparte del reparto. La suma no puede superar el total de venta.
+              </Text>
+              {pagosProveedorSoloIngreso.length === 0 ? (
+                <Text style={[estilosLocales.proveedorSub, { marginBottom: ESPACIADO.sm }]}>Ningún registro aún.</Text>
+              ) : (
+                pagosProveedorSoloIngreso.map((pago, idx) => {
+                  const esUltimo = idx === pagosProveedorSoloIngreso.length - 1;
                   return (
                     <View key={pago.id} style={[estilos.pagoFila, esUltimo && { borderBottomWidth: 0 }]}>
-                      <View style={[estilos.pagoIconBox, { backgroundColor: esCobroMov ? COLORES.exitoClaro : COLORES.proveedorClaro }]}>
-                        <Ionicons name={esCobroMov ? 'arrow-down-circle' : 'arrow-up-circle'} size={16} color={esCobroMov ? COLORES.exito : COLORES.proveedor} />
+                      <View style={[estilos.pagoIconBox, { backgroundColor: COLORES.primarioClaro }]}>
+                        <Ionicons name="people-outline" size={16} color={COLORES.primario} />
                       </View>
                       <View style={{ flex: 1, minWidth: 0 }}>
                         <Text style={estilos.pagoFecha}>{formatearFecha(pago.fecha)}</Text>
-                        <Text style={{ fontSize: 10, fontWeight: FUENTE.pesoBold, color: esCobroMov ? COLORES.exito : COLORES.proveedor }}>
-                          {esCobroMov ? 'Cobro (te pagó)' : 'Pago (le pagaste)'}
-                        </Text>
                       </View>
-                      <Text style={[estilos.pagoMonto, { color: esCobroMov ? COLORES.exito : COLORES.proveedor, marginRight: 4 }]}>{formatearMoneda(pago.monto)}</Text>
+                      <Text style={[estilos.pagoMonto, { color: COLORES.primario, marginRight: 4 }]}>{formatearMoneda(pago.monto)}</Text>
                       <TouchableOpacity onPress={() => handleEliminarPagoProveedor(pago.id, pago.monto, pago.tipo)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                         <Ionicons name="trash-outline" size={15} color={COLORES.peligro} />
                       </TouchableOpacity>
                     </View>
                   );
-                })}
-              </View>
-            )}
+                })
+              )}
+            </View>
 
-            {((!estaProveedorPagado && saldoProveedor > 0.005) || permitirRegistrarCobroProveedor) && (
-              <View style={estilosLocales.botonesProveedorFila}>
-                {!estaProveedorPagado && saldoProveedor > 0.005 && (
-                  <TouchableOpacity
-                    style={[estilosLocales.botonPagarProveedor, { flex: 1 }]}
-                    onPress={() => abrirModalProveedor('pago')}
-                    activeOpacity={0.85}
-                  >
-                    <Ionicons name="arrow-up-circle-outline" size={17} color={COLORES.blanco} />
-                    <Text style={estilosLocales.botonPagarProveedorTexto}>Pagar · {formatearMoneda(saldoProveedor)}</Text>
-                  </TouchableOpacity>
+            {/* Historial 2: lo que el proveedor te repartió (reduce «te debe»). */}
+            <View style={[estilosLocales.margenDetalleSep, { paddingHorizontal: ESPACIADO.md, paddingBottom: ESPACIADO.md }]}>
+              <Text style={estilosLocales.pagosProveedorTitulo}>Cobro del proveedor (reparto a vos)</Text>
+              <Text style={[estilosLocales.proveedorSub, { marginBottom: ESPACIADO.sm }]} numberOfLines={2}>
+                Cada registro baja el pendiente del encabezado. Podés agregar más con el botón verde del pie.
+              </Text>
+              {(pedido.pagos ?? []).length === 0 ? (
+                <Text style={[estilosLocales.proveedorSub, { marginBottom: ESPACIADO.sm }]}>Ninguno aún.</Text>
+              ) : (
+                (pedido.pagos ?? []).map((pago, idx) => {
+                  const esUltimo = idx === (pedido.pagos?.length ?? 0) - 1;
+                  return (
+                    <View key={pago.id} style={[estilos.pagoFila, esUltimo && { borderBottomWidth: 0 }]}>
+                      <View style={[estilos.pagoIconBox, { backgroundColor: COLORES.exitoClaro }]}>
+                        <Ionicons name="arrow-down-circle" size={16} color={COLORES.exito} />
+                      </View>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={estilos.pagoFecha}>{formatearFecha(pago.fecha)}</Text>
+                      </View>
+                      <Text style={[estilos.pagoMonto, { color: COLORES.exito, marginRight: 4 }]}>{formatearMoneda(pago.monto)}</Text>
+                      <TouchableOpacity onPress={() => handleEliminarPago(pago.id, pago.monto)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <Ionicons name="trash-outline" size={15} color={COLORES.peligro} />
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })
+              )}
+            </View>
+          </View>
+        ) : (
+          <>
+            {/* Pagos (cliente o compra) */}
+            <View style={estilos.card}>
+              <View style={estilos.cardHeader}>
+                <Text style={estilos.cardTitulo}>Pagos registrados</Text>
+                <View style={estilos.cardCount}>
+                  <Text style={estilos.cardCountTexto}>{pedido.pagos?.length ?? 0}</Text>
+                </View>
+              </View>
+              {(pedido.pagos ?? []).length === 0 ? (
+                <View style={estilos.sinDatosBox}>
+                  <Ionicons name="receipt-outline" size={24} color={COLORES.textoDeshabilitado} />
+                  <Text style={estilos.sinDatos}>Sin pagos aún</Text>
+                </View>
+              ) : (
+                (pedido.pagos ?? []).map((pago, idx) => {
+                  const esUltimo = idx === (pedido.pagos?.length ?? 0) - 1;
+                  return (
+                    <View key={pago.id} style={[estilos.pagoFila, esUltimo && { borderBottomWidth: 0 }]}>
+                      <View style={estilos.pagoIconBox}>
+                        <Ionicons name="checkmark-circle" size={16} color={COLORES.exito} />
+                      </View>
+                      <Text style={estilos.pagoFecha}>{formatearFecha(pago.fecha)}</Text>
+                      <Text style={[estilos.pagoMonto, { flex: 1 }]}>{formatearMoneda(pago.monto)}</Text>
+                      <TouchableOpacity onPress={() => handleEliminarPago(pago.id, pago.monto)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <Ionicons name="trash-outline" size={15} color={COLORES.peligro} />
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })
+              )}
+            </View>
+
+            {/* Proveedor asociado (solo ventas con cliente en la app) */}
+            {mostrarLadoProveedorCosto && (
+              <View style={[estilos.card, estilosLocales.cardProveedor]}>
+                <View style={estilos.cardHeader}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: ESPACIADO.sm }}>
+                    <Ionicons name="business-outline" size={16} color={COLORES.proveedor} />
+                    <Text style={[estilos.cardTitulo, { color: COLORES.proveedor }]}>Proveedor</Text>
+                  </View>
+                  <EstadoBadge estado={resumen?.estadoProveedor ?? 'pendiente'} />
+                </View>
+
+                <View style={estilosLocales.proveedorNombreBox}>
+                  <View style={[estilosLocales.proveedorAvatar, { backgroundColor: COLORES.proveedorClaro }]}>
+                    <Text style={[estilosLocales.proveedorAvatarLetra, { color: COLORES.proveedor }]}>
+                      {(pedido.proveedor?.nombre ?? '?').charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={estilosLocales.proveedorNombre}>{pedido.proveedor?.nombre ?? '—'}</Text>
+                    <Text style={estilosLocales.proveedorSub}>
+                      {estaProveedorPagado ? 'Pago completado' : `Saldo pendiente: ${formatearMoneda(saldoProveedor)}`}
+                    </Text>
+                  </View>
+                </View>
+
+                {!estaProveedorPagado && totalCostoProveedor > 0 && (
+                  <View style={estilosLocales.progresoProveedorWrapper}>
+                    <View style={estilos.progresoBar}>
+                      <View style={[estilos.progresoFill, estilosLocales.progresoProveedorFill, { width: `${porcentajeProveedorPagado}%` as any }]} />
+                    </View>
+                    <Text style={estilosLocales.progresoProveedorTexto}>{formatearMoneda(totalPagadoProveedor)} pagado · {porcentajeProveedorPagado}%</Text>
+                  </View>
                 )}
-                {permitirRegistrarCobroProveedor && (
-                  <TouchableOpacity
-                    style={[
-                      estilosLocales.botonCobrarProveedor,
-                      (!estaProveedorPagado && saldoProveedor > 0.005) ? { flex: 1 } : { width: '100%' },
-                    ]}
-                    onPress={() => abrirModalProveedor('cobro')}
-                    activeOpacity={0.85}
-                  >
-                    <Ionicons name="arrow-down-circle-outline" size={17} color={COLORES.exito} />
-                    <Text style={estilosLocales.botonCobrarProveedorTexto}>Cobrar del proveedor</Text>
-                  </TouchableOpacity>
+
+                <View style={estilosLocales.totalesProveedor}>
+                  <View style={estilosLocales.totalProveedorItem}>
+                    <Text style={estilosLocales.totalProveedorLabel}>Costo total</Text>
+                    <Text style={estilosLocales.totalProveedorValor}>{formatearMoneda(totalCostoProveedor)}</Text>
+                  </View>
+                  <View style={estilosLocales.totalProveedorItem}>
+                    <Text style={estilosLocales.totalProveedorLabel}>Pagado</Text>
+                    <Text style={[estilosLocales.totalProveedorValor, { color: COLORES.exito }]}>{formatearMoneda(totalPagadoProveedor)}</Text>
+                  </View>
+                  <View style={estilosLocales.totalProveedorItem}>
+                    <Text style={estilosLocales.totalProveedorLabel}>Pendiente</Text>
+                    <Text style={[estilosLocales.totalProveedorValor, { color: estaProveedorPagado ? COLORES.exito : COLORES.proveedor }]}>{formatearMoneda(saldoProveedor)}</Text>
+                  </View>
+                </View>
+
+                {(pedido.pagosProveedor ?? []).length > 0 && (
+                  <View style={estilosLocales.pagosProveedorLista}>
+                    <Text style={estilosLocales.pagosProveedorTitulo}>Movimientos con el proveedor</Text>
+                    {(pedido.pagosProveedor ?? []).map((pago, idx) => {
+                      const esUltimo = idx === (pedido.pagosProveedor?.length ?? 0) - 1;
+                      const esCobroMov = pago.tipo === 'cobro';
+                      const esIngreso = pago.tipo === 'ingreso_cliente_a_proveedor';
+                      return (
+                        <View key={pago.id} style={[estilos.pagoFila, esUltimo && { borderBottomWidth: 0 }]}>
+                          <View style={[estilos.pagoIconBox, { backgroundColor: esIngreso ? COLORES.primarioClaro : esCobroMov ? COLORES.exitoClaro : COLORES.proveedorClaro }]}>
+                            <Ionicons
+                              name={esIngreso ? 'people-outline' : esCobroMov ? 'arrow-down-circle' : 'arrow-up-circle'}
+                              size={16}
+                              color={esIngreso ? COLORES.primario : esCobroMov ? COLORES.exito : COLORES.proveedor}
+                            />
+                          </View>
+                          <View style={{ flex: 1, minWidth: 0 }}>
+                            <Text style={estilos.pagoFecha}>{formatearFecha(pago.fecha)}</Text>
+                            <Text
+                              style={{
+                                fontSize: 10,
+                                fontWeight: FUENTE.pesoBold,
+                                color: esIngreso ? COLORES.primario : esCobroMov ? COLORES.exito : COLORES.proveedor,
+                              }}
+                            >
+                              {esIngreso ? 'Ingreso clientes (no costo)' : esCobroMov ? 'Cobro (te pagó)' : 'Pago (le pagaste)'}
+                            </Text>
+                          </View>
+                          <Text
+                            style={[
+                              estilos.pagoMonto,
+                              { color: esIngreso ? COLORES.primario : esCobroMov ? COLORES.exito : COLORES.proveedor, marginRight: 4 },
+                            ]}
+                          >
+                            {formatearMoneda(pago.monto)}
+                          </Text>
+                          <TouchableOpacity onPress={() => handleEliminarPagoProveedor(pago.id, pago.monto, pago.tipo)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                            <Ionicons name="trash-outline" size={15} color={COLORES.peligro} />
+                          </TouchableOpacity>
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
+
+                {!estaProveedorPagado && saldoProveedor > 0.005 && (
+                  <View style={estilosLocales.botonesProveedorFila}>
+                    <TouchableOpacity
+                      style={[estilosLocales.botonPagarProveedor, { width: '100%' }]}
+                      onPress={() => abrirModalProveedor('pago')}
+                      activeOpacity={0.85}
+                    >
+                      <Ionicons name="arrow-up-circle-outline" size={17} color={COLORES.blanco} />
+                      <Text style={estilosLocales.botonPagarProveedorTexto}>Pagar · {formatearMoneda(saldoProveedor)}</Text>
+                    </TouchableOpacity>
+                  </View>
                 )}
               </View>
             )}
-          </View>
+          </>
         )}
 
-        {/* Utilidad real (solo ventas con proveedor asociado) */}
-        {esVenta && mostrarLadoProveedorCosto && (
+        {/* Mis utilidades: venta con proveedor (cliente en app o venta solo proveedor) */}
+        {esVenta && (mostrarLadoProveedorCosto || mostrarTarjetaProveedorVentaSolo) && (
           <View style={estilosLocales.cardGanancia}>
             <View style={estilos.cardHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: ESPACIADO.sm }}>
@@ -720,29 +879,67 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
                 <Text style={[estilos.cardTitulo, { color: COLORES.exito }]}>Mis utilidades</Text>
               </View>
             </View>
-            <View style={estilosLocales.gananciaFila}>
-              <View style={estilosLocales.gananciaItem}>
-                <Text style={estilosLocales.gananciaLabel}>Cobrado al cliente</Text>
-                <Text style={[estilosLocales.gananciaValor, { color: COLORES.primario }]}>{formatearMoneda(totalPagado)}</Text>
-              </View>
-              <Text style={estilosLocales.gananciaMenos}>−</Text>
-              <View style={estilosLocales.gananciaItem}>
-                <Text style={estilosLocales.gananciaLabel}>Neto proveedor</Text>
-                <Text style={[estilosLocales.gananciaValor, { color: COLORES.proveedor }]}>{formatearMoneda(netoEgresoProveedor)}</Text>
-                {cobrosProveedor > 0.005 ? (
-                  <Text style={estilosLocales.gananciaMini} numberOfLines={2}>
-                    Abonaste {formatearMoneda(abonosProveedor)} · Te pagó {formatearMoneda(cobrosProveedor)}
+            {mostrarTarjetaProveedorVentaSolo ? (
+              <View style={estilosLocales.gananciaFila}>
+                <View style={estilosLocales.gananciaItem}>
+                  <Text style={estilosLocales.gananciaLabel}>Cliente→proveedor</Text>
+                  <Text style={[estilosLocales.gananciaValor, { color: COLORES.primario }]}>
+                    {formatearMoneda(totalIngresosClientesAlProveedor)}
                   </Text>
-                ) : null}
+                  <Text style={estilosLocales.gananciaMini} numberOfLines={1}>
+                    {total > 0.005 ? `/ ${formatearMoneda(total)}` : '—'}
+                  </Text>
+                </View>
+                <View style={estilosLocales.gananciaItem}>
+                  <Text style={estilosLocales.gananciaLabel}>Reparto</Text>
+                  <Text style={[estilosLocales.gananciaValor, { color: COLORES.exito }]}>{formatearMoneda(totalPagado)}</Text>
+                  <Text style={estilosLocales.gananciaMini} numberOfLines={1}>
+                    {referenciaCobroCliente > 0.005 ? `/ ${formatearMoneda(referenciaCobroCliente)}` : '—'}
+                  </Text>
+                </View>
+                <View style={[estilosLocales.gananciaItem, estilosLocales.gananciaResultadoBox]}>
+                  <Text style={estilosLocales.gananciaLabel}>Utilidad real</Text>
+                  <Text
+                    style={[
+                      estilosLocales.gananciaValor,
+                      estilosLocales.gananciaResultado,
+                      { color: utilidadRealProveedor >= 0 ? COLORES.exito : COLORES.peligro },
+                    ]}
+                  >
+                    {formatearMoneda(utilidadRealProveedor)}
+                  </Text>
+                  {netoEgresoProveedor > 0.005 ? (
+                    <Text style={estilosLocales.gananciaMini} numberOfLines={1}>
+                      {formatearMoneda(totalPagado)} − {formatearMoneda(netoEgresoProveedor)}
+                    </Text>
+                  ) : null}
+                </View>
               </View>
-              <Text style={estilosLocales.gananciaIgual}>=</Text>
-              <View style={[estilosLocales.gananciaItem, estilosLocales.gananciaResultadoBox]}>
-                <Text style={estilosLocales.gananciaLabel}>Utilidad real</Text>
-                <Text style={[estilosLocales.gananciaValor, estilosLocales.gananciaResultado, { color: utilidadRealProveedor >= 0 ? COLORES.exito : COLORES.peligro }]}>
-                  {formatearMoneda(utilidadRealProveedor)}
-                </Text>
+            ) : (
+              <View style={estilosLocales.gananciaFila}>
+                <View style={estilosLocales.gananciaItem}>
+                  <Text style={estilosLocales.gananciaLabel}>Cobrado al cliente</Text>
+                  <Text style={[estilosLocales.gananciaValor, { color: COLORES.primario }]}>{formatearMoneda(totalPagado)}</Text>
+                </View>
+                <Text style={estilosLocales.gananciaMenos}>−</Text>
+                <View style={estilosLocales.gananciaItem}>
+                  <Text style={estilosLocales.gananciaLabel}>Neto proveedor</Text>
+                  <Text style={[estilosLocales.gananciaValor, { color: COLORES.proveedor }]}>{formatearMoneda(netoEgresoProveedor)}</Text>
+                  {abonosProveedor > 0.005 || cobrosProveedor > 0.005 ? (
+                    <Text style={estilosLocales.gananciaMini} numberOfLines={2}>
+                      Abonaste {formatearMoneda(abonosProveedor)} · Te pagó {formatearMoneda(cobrosProveedor)}
+                    </Text>
+                  ) : null}
+                </View>
+                <Text style={estilosLocales.gananciaIgual}>=</Text>
+                <View style={[estilosLocales.gananciaItem, estilosLocales.gananciaResultadoBox]}>
+                  <Text style={estilosLocales.gananciaLabel}>Utilidad real</Text>
+                  <Text style={[estilosLocales.gananciaValor, estilosLocales.gananciaResultado, { color: utilidadRealProveedor >= 0 ? COLORES.exito : COLORES.peligro }]}>
+                    {formatearMoneda(utilidadRealProveedor)}
+                  </Text>
+                </View>
               </View>
-            </View>
+            )}
             {(pedido.impuesto ?? 0) > 0 && (
               <View style={estilosLocales.gananciaIvaFila}>
                 <Ionicons name="pricetag-outline" size={15} color={COLORES.morado} />
@@ -751,9 +948,11 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
                 </Text>
               </View>
             )}
-            <Text style={estilosLocales.gananciaAclaracion}>
-              Utilidad real = cobrado al cliente − (pagos al proveedor − cobros que te hizo). Margen potencial: {formatearMoneda((resumen?.totalVenta ?? 0) - (resumen?.totalCompra ?? 0))}.
-            </Text>
+            {!mostrarTarjetaProveedorVentaSolo ? (
+              <Text style={estilosLocales.gananciaAclaracion}>
+                {`Utilidad real = cobrado al cliente − (pagos al proveedor − cobros que te hizo). Margen potencial: ${formatearMoneda((resumen?.totalVenta ?? 0) - (resumen?.totalCompra ?? 0))}.`}
+              </Text>
+            ) : null}
           </View>
         )}
 
@@ -768,12 +967,17 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
         {!estaPagado ? (
           <TouchableOpacity style={estilos.botonPagarHero} onPress={() => setModalPago(true)} activeOpacity={0.85}>
             <Ionicons name="cash-outline" size={20} color={COLORES.blanco} />
-            <Text style={estilos.botonPagarHeroTexto}>Registrar pago · {formatearMoneda(saldo)}</Text>
+            <Text style={estilos.botonPagarHeroTexto}>
+              {sinClienteVenta && tieneProveedor ? 'Registrar reparto · ' : 'Registrar pago · '}
+              {formatearMoneda(saldo)}
+            </Text>
           </TouchableOpacity>
         ) : (
           <View style={estilos.pagadoBox}>
             <Ionicons name="checkmark-circle" size={18} color={COLORES.exito} />
-            <Text style={estilos.pagadoTexto}>Pedido completamente pagado</Text>
+            <Text style={estilos.pagadoTexto}>
+              {sinClienteVenta && tieneProveedor ? 'Total repartido (venta con proveedor)' : 'Pedido completamente pagado'}
+            </Text>
           </View>
         )}
         <TouchableOpacity style={estilos.botonPDF} onPress={() => setModalPDF(true)} activeOpacity={0.85} disabled={generandoPDF}>
@@ -843,7 +1047,7 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
               <Ionicons name="chevron-forward" size={16} color={COLORES.textoDeshabilitado} />
             </TouchableOpacity>
 
-            {mostrarLadoProveedorCosto && (
+            {mostrarLadoProveedorCosto || mostrarTarjetaProveedorVentaSolo ? (
               <TouchableOpacity style={estilosLocales.pdfOpcion} onPress={() => handleGenerarPDF('proveedor')} activeOpacity={0.85}>
                 <View style={[estilosLocales.pdfIconBox, { backgroundColor: COLORES.proveedorClaro }]}>
                   <Ionicons name="business-outline" size={20} color={COLORES.proveedor} />
@@ -854,9 +1058,9 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
                 </View>
                 <Ionicons name="chevron-forward" size={16} color={COLORES.textoDeshabilitado} />
               </TouchableOpacity>
-            )}
+            ) : null}
 
-            {mostrarLadoProveedorCosto && (
+            {mostrarLadoProveedorCosto || mostrarTarjetaProveedorVentaSolo ? (
               <TouchableOpacity style={estilosLocales.pdfOpcion} onPress={() => handleGenerarPDF('completo')} activeOpacity={0.85}>
                 <View style={[estilosLocales.pdfIconBox, { backgroundColor: COLORES.exitoClaro }]}>
                   <Ionicons name="stats-chart-outline" size={20} color={COLORES.exito} />
@@ -867,7 +1071,7 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
                 </View>
                 <Ionicons name="chevron-forward" size={16} color={COLORES.textoDeshabilitado} />
               </TouchableOpacity>
-            )}
+            ) : null}
 
             <TouchableOpacity style={estilosLocales.pdfOpcion} onPress={() => handleGenerarPDF('cotizacion')} activeOpacity={0.85}>
               <View style={[estilosLocales.pdfIconBox, { backgroundColor: COLORES.advertenciaClaro }]}>
@@ -898,11 +1102,28 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
                   <Ionicons name="cash-outline" size={22} color={COLORES.exito} />
                 </View>
                 <View>
-                  <Text style={estilos.modalTitulo}>Registrar pago</Text>
-                  <Text style={estilos.modalSubtitulo}>Saldo pendiente: {formatearMoneda(saldo)}</Text>
+                  <Text style={estilos.modalTitulo}>{sinClienteVenta && tieneProveedor ? 'Registrar reparto' : 'Registrar pago'}</Text>
+                  <Text style={estilos.modalSubtitulo}>
+                    {sinClienteVenta && tieneProveedor
+                      ? `Te falta recibir de tu margen: ${formatearMoneda(saldo)} (margen del pedido: ${formatearMoneda(referenciaCobroCliente)}).`
+                      : `Saldo pendiente: ${formatearMoneda(saldo)}`}
+                  </Text>
                 </View>
               </View>
-              <CampoTexto etiqueta="Monto a pagar" placeholder="0.00" value={montoPago} onChangeText={setMontoPago} keyboardType="decimal-pad" icono="cash-outline" autoFocus ayuda={`Máximo: ${formatearMoneda(saldo)}`} />
+              <CampoTexto
+                etiqueta={sinClienteVenta && tieneProveedor ? 'Monto del reparto' : 'Monto a pagar'}
+                placeholder="0.00"
+                value={montoPago}
+                onChangeText={setMontoPago}
+                keyboardType="decimal-pad"
+                icono="cash-outline"
+                autoFocus
+                ayuda={
+                  sinClienteVenta && tieneProveedor
+                    ? `Máximo este reparto: ${formatearMoneda(saldo)} (la suma de repartos no puede superar el margen).`
+                    : `Máximo: ${formatearMoneda(saldo)}`
+                }
+              />
               <View style={estilos.modalBotones}>
                 <BotonPrimario titulo="Cancelar" onPress={() => { setModalPago(false); setMontoPago(''); }} variante="secundario" estilo={{ flex: 1, marginRight: ESPACIADO.sm }} />
                 <BotonPrimario titulo="Guardar" onPress={handleAgregarPago} cargando={guardandoPago} estilo={{ flex: 1 }} />
@@ -919,26 +1140,62 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
             <View style={estilos.modalContenido}>
               <View style={estilos.modalHandle} />
               <View style={estilos.modalHeader}>
-                <View style={[estilos.modalIconBox, { backgroundColor: tipoMovimientoProveedor === 'cobro' ? COLORES.exitoClaro : COLORES.proveedorClaro }]}>
+                <View
+                  style={[
+                    estilos.modalIconBox,
+                    {
+                      backgroundColor:
+                        tipoMovimientoProveedor === 'ingreso_cliente_a_proveedor'
+                          ? COLORES.primarioClaro
+                          : tipoMovimientoProveedor === 'cobro'
+                            ? COLORES.exitoClaro
+                            : COLORES.proveedorClaro,
+                    },
+                  ]}
+                >
                   <Ionicons
-                    name={tipoMovimientoProveedor === 'cobro' ? 'arrow-down-circle-outline' : 'business-outline'}
+                    name={
+                      tipoMovimientoProveedor === 'ingreso_cliente_a_proveedor'
+                        ? 'people-outline'
+                        : tipoMovimientoProveedor === 'cobro'
+                          ? 'arrow-down-circle-outline'
+                          : 'business-outline'
+                    }
                     size={22}
-                    color={tipoMovimientoProveedor === 'cobro' ? COLORES.exito : COLORES.proveedor}
+                    color={
+                      tipoMovimientoProveedor === 'ingreso_cliente_a_proveedor'
+                        ? COLORES.primario
+                        : tipoMovimientoProveedor === 'cobro'
+                          ? COLORES.exito
+                          : COLORES.proveedor
+                    }
                   />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={estilos.modalTitulo}>
-                    {tipoMovimientoProveedor === 'cobro' ? 'Cobro del proveedor' : 'Pago al proveedor'}
+                    {tipoMovimientoProveedor === 'ingreso_cliente_a_proveedor'
+                      ? 'Ingreso de clientes al proveedor'
+                      : tipoMovimientoProveedor === 'cobro'
+                        ? 'Cobro del proveedor (costo)'
+                        : 'Pago al proveedor'}
                   </Text>
                   <Text style={estilos.modalSubtitulo}>
-                    {tipoMovimientoProveedor === 'cobro'
-                      ? `Saldo pendiente de costo: ${formatearMoneda(saldoProveedor)}. Registrá lo que te transfirió o entregó.`
-                      : `Saldo a pagar: ${formatearMoneda(saldoProveedor)}`}
+                    {tipoMovimientoProveedor === 'ingreso_cliente_a_proveedor'
+                      ? `Anotá lo que clientes finales le pagaron al proveedor. La suma no puede superar el total de venta (máximo ahora ${formatearMoneda(maxIngresoClienteProveedor)}). Lo que él te reparta lo registrás con el botón verde del pie.`
+                      : tipoMovimientoProveedor === 'cobro'
+                        ? `Saldo pendiente de costo: ${formatearMoneda(saldoProveedor)}. Registrá lo que te transfirió o entregó.`
+                        : `Saldo a pagar: ${formatearMoneda(saldoProveedor)}`}
                   </Text>
                 </View>
               </View>
               <CampoTexto
-                etiqueta={tipoMovimientoProveedor === 'cobro' ? 'Monto que te pagó el proveedor' : 'Monto a pagar'}
+                etiqueta={
+                  tipoMovimientoProveedor === 'ingreso_cliente_a_proveedor'
+                    ? 'Monto que le pagaron (clientes finales)'
+                    : tipoMovimientoProveedor === 'cobro'
+                      ? 'Monto que te pagó el proveedor'
+                      : 'Monto a pagar'
+                }
                 placeholder="0.00"
                 value={montoPagoProveedor}
                 onChangeText={setMontoPagoProveedor}
@@ -946,9 +1203,11 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
                 icono="cash-outline"
                 autoFocus
                 ayuda={
-                  tipoMovimientoProveedor === 'cobro'
-                    ? 'Reduce lo que le debés por el costo del pedido (intermediación u otros acuerdos).'
-                    : `Máximo: ${formatearMoneda(saldoProveedor)}`
+                  tipoMovimientoProveedor === 'ingreso_cliente_a_proveedor'
+                    ? `Tope para este movimiento: ${formatearMoneda(maxIngresoClienteProveedor)} (referencia de flujo hacia el proveedor).`
+                    : tipoMovimientoProveedor === 'cobro'
+                      ? 'Reduce lo que le debés por el costo del pedido.'
+                      : `Máximo: ${formatearMoneda(saldoProveedor)}`
                 }
               />
               <View style={estilos.modalBotones}>
@@ -1192,7 +1451,68 @@ const estilosLocales = StyleSheet.create({
   },
   pdfOpcionTitulo: { fontSize: FUENTE.tamanoBase, fontWeight: FUENTE.pesoBold, color: COLORES.texto, marginBottom: 2 },
   pdfOpcionDesc: { fontSize: FUENTE.tamanoXs, color: COLORES.textoSecundario, lineHeight: 16 },
-  // ─── Proveedor ─────────────────────────────────────────────────────────────
+  // ─── Proveedor / control venta solo proveedor (compacto) ───────────────────
+  margenCabeceraPlegable: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: ESPACIADO.md,
+    paddingVertical: ESPACIADO.sm,
+    gap: ESPACIADO.sm,
+  },
+  margenResumenCompacto: {
+    fontSize: FUENTE.tamanoPequeno,
+    color: COLORES.textoSecundario,
+    marginTop: 4,
+  },
+  margenResumenCompactoSec: {
+    fontSize: FUENTE.tamanoXs,
+    color: COLORES.textoSecundario,
+    marginTop: 2,
+  },
+  margenAccionesFila: {
+    flexDirection: 'row',
+    gap: ESPACIADO.sm,
+    paddingHorizontal: ESPACIADO.md,
+    paddingBottom: ESPACIADO.md,
+  },
+  margenBotonSec: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 11,
+    borderRadius: RADIO.lg,
+    borderWidth: 1.5,
+    borderColor: COLORES.primario,
+    backgroundColor: COLORES.tarjeta,
+  },
+  margenBotonSecTexto: {
+    fontSize: FUENTE.tamanoPequeno,
+    fontWeight: FUENTE.pesoBold,
+    color: COLORES.primario,
+  },
+  margenBotonPri: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 11,
+    borderRadius: RADIO.lg,
+    backgroundColor: COLORES.primario,
+  },
+  margenBotonPriTexto: {
+    fontSize: FUENTE.tamanoPequeno,
+    fontWeight: FUENTE.pesoBold,
+    color: COLORES.blanco,
+  },
+  margenDetalleSep: {
+    borderTopWidth: 1,
+    borderTopColor: COLORES.borde,
+    paddingTop: ESPACIADO.md,
+    marginTop: ESPACIADO.sm,
+  },
   cardProveedor: {
     borderColor: COLORES.proveedorClaro,
     borderWidth: 1.5,
@@ -1305,6 +1625,19 @@ const estilosLocales = StyleSheet.create({
     fontSize: FUENTE.tamanoBase,
     fontWeight: FUENTE.pesoBold,
     color: COLORES.exito,
+  },
+  botonIngresoProveedorLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: ESPACIADO.sm,
+    paddingVertical: ESPACIADO.sm,
+  },
+  botonIngresoProveedorLinkTexto: {
+    fontSize: FUENTE.tamanoPequeno,
+    fontWeight: FUENTE.pesoSemibold,
+    color: COLORES.primario,
   },
 });
 

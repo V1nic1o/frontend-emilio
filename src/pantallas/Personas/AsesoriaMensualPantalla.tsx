@@ -36,36 +36,17 @@ function etiquetaPeriodoAsesoria(anio: number, mes: number) {
   return `${MESES_CORTO[mes - 1] ?? mes} ${anio}`;
 }
 
-const MESES_LARGOS_RENOV = [
-  'enero',
-  'febrero',
-  'marzo',
-  'abril',
-  'mayo',
-  'junio',
-  'julio',
-  'agosto',
-  'septiembre',
-  'octubre',
-  'noviembre',
-  'diciembre',
-];
-
-function textoRenovacionAsesoriaMensual() {
-  const ahora = new Date();
-  const primeroProximoMes = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 1);
-  const dia = primeroProximoMes.getDate();
-  const mesNom = MESES_LARGOS_RENOV[primeroProximoMes.getMonth()];
-  const anio = primeroProximoMes.getFullYear();
+function textoInfoAsesoriaMensual() {
   return {
     regla:
-      'Los periodos se generan el día 1 de cada mes (al abrir Inicio o con el recordatorio automático). El mes en curso se crea si aún no existe.',
-    proxima: `Próxima renovación automática: ${dia} de ${mesNom} de ${anio}.`,
+      'Desde el mes de alta hasta hoy se van creando los cobros mensuales al abrir Inicio o esta pantalla (si faltaba un mes, se completa). Cuando cobres, tocá «Registrar pago».',
+    extra:
+      'Si no abriste la app un mes, no se pierde: al volver a entrar aparecen los periodos pendientes en el historial.',
   };
 }
 
 const REGLA_PLAN_CORTA =
-  'Cada mes se crea un periodo nuevo (al abrir Inicio o con el recordatorio). Cuando el cliente pague, tocá «Registrar pago» para contarlo en ingresos.';
+  'Los meses desde el alta hasta hoy se sincronizan al abrir Inicio o acá. Registrá el pago cuando cobres.';
 
 /** IVA en moneda sobre el monto base mensual (mismo criterio que el total del periodo: base × %/100). */
 function montoIvaMensualSuscripcion(montoMensual: number, impuestoPct: number | null | undefined): number | null {
@@ -108,7 +89,7 @@ const AsesoriaMensualPantalla: React.FC<Props> = ({ navigation, route }) => {
   );
 
   const cobrosAsesoria = asesoriaResp?.suscripcion?.cobros ?? [];
-  const infoRenovacionAsesoria = textoRenovacionAsesoriaMensual();
+  const infoAsesoriaMensual = textoInfoAsesoriaMensual();
   const suscripcionPlan = asesoriaResp?.suscripcion;
   const ivaMensualPlan =
     suscripcionPlan != null
@@ -337,9 +318,9 @@ const AsesoriaMensualPantalla: React.FC<Props> = ({ navigation, route }) => {
                 </TouchableOpacity>
                 <View style={estilos.notaInfo}>
                   <Ionicons name="information-circle-outline" size={18} color={COLORES.textoSecundario} />
-                  <Text style={estilos.notaInfoTxt}>{infoRenovacionAsesoria.regla}</Text>
+                  <Text style={estilos.notaInfoTxt}>{infoAsesoriaMensual.regla}</Text>
                 </View>
-                <Text style={estilos.notaProxima}>{infoRenovacionAsesoria.proxima}</Text>
+                <Text style={estilos.notaProxima}>{infoAsesoriaMensual.extra}</Text>
               </View>
             ) : (
               <>
@@ -396,7 +377,7 @@ const AsesoriaMensualPantalla: React.FC<Props> = ({ navigation, route }) => {
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text style={estilos.cajaAyudaTitulo}>Cómo funciona</Text>
                       <Text style={estilos.cajaAyudaTxt}>{REGLA_PLAN_CORTA}</Text>
-                      <Text style={estilos.cajaAyudaProxima}>{infoRenovacionAsesoria.proxima}</Text>
+                      <Text style={estilos.cajaAyudaProxima}>{infoAsesoriaMensual.extra}</Text>
                     </View>
                   </View>
 

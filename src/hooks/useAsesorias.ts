@@ -14,6 +14,11 @@ export function useAsesoriaPersona(personaId: number) {
     setCargando(true);
     setError(null);
     try {
+      try {
+        await asesoriasServicio.sincronizar(walletSeleccionado.id);
+      } catch {
+        // Sin red u offline: igual mostramos datos ya guardados
+      }
       const r = await asesoriasServicio.obtenerPorPersona(personaId, walletSeleccionado.id);
       setData(r);
     } catch (e: unknown) {

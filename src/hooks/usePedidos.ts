@@ -61,6 +61,7 @@ export const usePedidos = () => {
 };
 
 export const usePedidoDetalle = (id: number) => {
+  const { solicitarRefrescoFinanzas } = useWallet();
   const [pedido, setPedido] = useState<Pedido | null>(null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -78,6 +79,16 @@ export const usePedidoDetalle = (id: number) => {
     }
   }, [id]);
 
+  /** Alinea con el servidor sin activar el spinner de carga (p. ej. tras registrar reparto). */
+  const refrescarPedidoSilencioso = useCallback(async () => {
+    try {
+      const data = await pedidosServicio.obtenerPorId(id);
+      setPedido(data);
+    } catch {
+      // Mantener estado optimista si la red falla
+    }
+  }, [id]);
+
   const agregarPago = useCallback(
     async (dto: CrearPagoDto): Promise<void> => {
       try {
@@ -86,11 +97,13 @@ export const usePedidoDetalle = (id: number) => {
           if (!prev) return prev;
           return { ...prev, pagos: [pago, ...(prev.pagos ?? [])], resumen };
         });
+        solicitarRefrescoFinanzas();
+        void refrescarPedidoSilencioso();
       } catch (e: unknown) {
         throw new Error(e instanceof Error ? e.message : 'Error al registrar pago');
       }
     },
-    [id]
+    [id, solicitarRefrescoFinanzas, refrescarPedidoSilencioso]
   );
 
   const agregarPagoProveedor = useCallback(
@@ -101,11 +114,13 @@ export const usePedidoDetalle = (id: number) => {
           if (!prev) return prev;
           return { ...prev, pagosProveedor: [pago, ...(prev.pagosProveedor ?? [])], resumen };
         });
+        solicitarRefrescoFinanzas();
+        void refrescarPedidoSilencioso();
       } catch (e: unknown) {
         throw new Error(e instanceof Error ? e.message : 'Error al registrar pago al proveedor');
       }
     },
-    [id]
+    [id, solicitarRefrescoFinanzas, refrescarPedidoSilencioso]
   );
 
   const eliminarPago = useCallback(
@@ -116,11 +131,13 @@ export const usePedidoDetalle = (id: number) => {
           if (!prev) return prev;
           return { ...prev, pagos: (prev.pagos ?? []).filter((p) => p.id !== pagoId), resumen };
         });
+        solicitarRefrescoFinanzas();
+        void refrescarPedidoSilencioso();
       } catch (e: unknown) {
         throw new Error(e instanceof Error ? e.message : 'Error al eliminar pago');
       }
     },
-    [id]
+    [id, solicitarRefrescoFinanzas, refrescarPedidoSilencioso]
   );
 
   const eliminarPagoProveedor = useCallback(
@@ -131,11 +148,13 @@ export const usePedidoDetalle = (id: number) => {
           if (!prev) return prev;
           return { ...prev, pagosProveedor: (prev.pagosProveedor ?? []).filter((p) => p.id !== pagoId), resumen };
         });
+        solicitarRefrescoFinanzas();
+        void refrescarPedidoSilencioso();
       } catch (e: unknown) {
         throw new Error(e instanceof Error ? e.message : 'Error al eliminar pago al proveedor');
       }
     },
-    [id]
+    [id, solicitarRefrescoFinanzas, refrescarPedidoSilencioso]
   );
 
   const agregarItem = useCallback(

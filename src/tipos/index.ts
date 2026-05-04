@@ -208,6 +208,8 @@ export interface ResumenPedido {
   /** Total a cobrar al cliente en venta (subtotal + IVA si aplica). */
   totalVenta: number;
   totalPagado: number;
+  /** Tope del lado Pagos (venta normal: totalVenta; venta proveedor: margen venta−costo). */
+  referenciaSaldoCliente: number;
   saldoPendiente: number;
   estado: EstadoPedido;
   // Lado proveedor
@@ -234,14 +236,14 @@ export interface Pago {
   fecha: string;
 }
 
-export type TipoPagoProveedor = 'pago' | 'cobro';
+export type TipoPagoProveedor = 'pago' | 'cobro' | 'ingreso_cliente_a_proveedor';
 
 export interface PagoProveedor {
   id: number;
   pedidoId: number;
   monto: number;
   fecha: string;
-  /** `pago`: le pagaste al proveedor. `cobro`: te pagó él (reduce lo debido por costo). */
+  /** `pago`: le pagaste al proveedor. `cobro`: te pagó él (reduce costo). `ingreso_cliente_a_proveedor`: clientes pagaron a él (venta sin cliente). */
   tipo?: TipoPagoProveedor;
 }
 

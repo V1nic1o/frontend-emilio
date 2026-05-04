@@ -21,6 +21,7 @@ import FAB from '../../componentes/FAB';
 import { COLORES } from '../../estilos/colores';
 import { FUENTE, ESPACIADO, RADIO, estilosComunes } from '../../estilos/tema';
 import { formatearMoneda, formatearFecha, etiquetaPedido, subtituloNumeroPedido } from '../../utilidades/formato';
+import { esVentaSoloProveedorSinCliente } from '../../utilidades/pagosPendientes';
 
 type Props = NativeStackScreenProps<PedidosStackParamList, 'ListaPedidos'>;
 type Filtro = 'todos' | 'ventas' | 'compras' | 'pendientes';
@@ -29,13 +30,20 @@ const FILTROS: { id: Filtro; etiqueta: string; icono: React.ComponentProps<typeo
   { id: 'todos', etiqueta: 'Todos', icono: 'apps-outline' },
   { id: 'ventas', etiqueta: 'Ventas', icono: 'arrow-up-circle-outline' },
   { id: 'compras', etiqueta: 'Compras', icono: 'arrow-down-circle-outline' },
-  { id: 'pendientes', etiqueta: 'Sin pagar', icono: 'time-outline' },
+  { id: 'pendientes', etiqueta: 'Pendientes', icono: 'time-outline' },
 ];
 
 const ESTADO_CONFIG = {
   pagado: { label: 'Pagado', color: COLORES.exito, fondo: COLORES.exitoClaro, icono: 'checkmark-circle' as const },
   parcial: { label: 'Parcial', color: '#D97706', fondo: '#FEF3C7', icono: 'ellipse-outline' as const },
   pendiente: { label: 'Pendiente', color: COLORES.peligro, fondo: '#FFF1F0', icono: 'time-outline' as const },
+};
+
+/** Mismas etiquetas que `EstadoBadge` con `varianteCobro` (venta solo proveedor). */
+const ESTADO_CONFIG_COBRO = {
+  pagado: { label: 'Cobrado', color: COLORES.exito, fondo: COLORES.exitoClaro, icono: 'checkmark-circle' as const },
+  parcial: { label: 'Cobro parcial', color: '#D97706', fondo: '#FEF3C7', icono: 'ellipse-outline' as const },
+  pendiente: { label: 'Sin cobrar', color: COLORES.peligro, fondo: '#FFF1F0', icono: 'time-outline' as const },
 };
 
 const ListaPedidos: React.FC<Props> = ({ navigation }) => {
@@ -79,22 +87,28 @@ const ListaPedidos: React.FC<Props> = ({ navigation }) => {
     const totalVentas = pedidos
       .filter((p) => p.tipo === 'venta')
       .reduce((acc, p) => acc + (p.resumen?.totalVenta ?? 0), 0);
-    const totalPendiente = pedidos.reduce((acc, p) => {
-      const total = p.tipo === 'venta' ? (p.resumen?.totalVenta ?? 0) : (p.resumen?.totalCompra ?? 0);
-      return acc + Math.max(0, total - (p.resumen?.totalPagado ?? 0));
-    }, 0);
+    const totalPendiente = pedidos.reduce(
+      (acc, p) => acc + Math.max(0, p.resumen?.saldoPendiente ?? 0),
+      0,
+    );
     return { totalVentas, totalPendiente };
   }, [pedidos]);
 
   const renderPedido = useCallback(
     ({ item }: { item: Pedido }) => {
       const esVenta = item.tipo === 'venta';
-      const total = esVenta ? (item.resumen?.totalVenta ?? 0) : (item.resumen?.totalCompra ?? 0);
+      const esInter = esVentaSoloProveedorSinCliente(item);
+      const refBarra = esVenta
+        ? esInter
+          ? (item.resumen?.referenciaSaldoCliente ?? item.resumen?.totalVenta ?? 0)
+          : (item.resumen?.totalVenta ?? 0)
+        : (item.resumen?.totalCompra ?? 0);
       const pagado = item.resumen?.totalPagado ?? 0;
-      const saldo = Math.max(0, total - pagado);
-      const porcentaje = total > 0 ? Math.min(100, Math.round((pagado / total) * 100)) : 0;
+      const saldo = item.resumen?.saldoPendiente ?? Math.max(0, refBarra - pagado);
+      const porcentaje = refBarra > 0 ? Math.min(100, Math.round((pagado / refBarra) * 100)) : 0;
       const estadoKey = (item.resumen?.estado ?? 'pendiente') as keyof typeof ESTADO_CONFIG;
-      const estadoCfg = ESTADO_CONFIG[estadoKey] ?? ESTADO_CONFIG.pendiente;
+      const tablaEstado = esInter ? ESTADO_CONFIG_COBRO : ESTADO_CONFIG;
+      const estadoCfg = tablaEstado[estadoKey] ?? tablaEstado.pendiente;
 
       const colorTipo = esVenta ? COLORES.primario : COLORES.morado;
       const fondoTipo = esVenta ? COLORES.primarioClaro : COLORES.moradoClaro;
@@ -162,7 +176,7 @@ const ListaPedidos: React.FC<Props> = ({ navigation }) => {
                 {saldo > 0 ? 'Saldo' : 'Total'}
               </Text>
               <Text style={[estilos.totalMonto, saldo > 0 && { color: COLORES.peligro }]}>
-                {formatearMoneda(saldo > 0 ? saldo : total)}
+                {formatearMoneda(saldo > 0 ? saldo : refBarra)}
               </Text>
             </View>
           </View>

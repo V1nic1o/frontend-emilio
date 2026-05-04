@@ -132,7 +132,12 @@ const PendientesSinSaldarPantalla: React.FC<Props> = ({ navigation }) => {
               <Text style={estilos.sub}>{formatearFecha(p.fecha)}</Text>
             </View>
             <View style={estilos.der}>
-              {p.resumen ? <EstadoBadge estado={estadoMostrar} /> : null}
+              {p.resumen ? (
+                <EstadoBadge
+                  estado={estadoMostrar}
+                  varianteCobro={esVenta && esVentaSoloProveedorSinCliente(p) && saldoCliente > 0}
+                />
+              ) : null}
               <Text style={estilos.monto}>{formatearMoneda(saldoMostrar)}</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={COLORES.textoDeshabilitado} />

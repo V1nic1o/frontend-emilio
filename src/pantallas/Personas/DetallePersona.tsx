@@ -199,7 +199,9 @@ const DetallePersona: React.FC<Props> = ({ navigation, route }) => {
         saldo = item.resumen.saldoPendiente;
       } else {
         const totalCompra = (item.items ?? []).reduce((s, i) => s + i.cantidad * i.precioCompra, 0);
-        const totalPagado = (item.pagosProveedor ?? []).reduce((s, p) => s + p.monto, 0);
+        const totalPagado = (item.pagosProveedor ?? [])
+          .filter((p) => p.tipo !== 'ingreso_cliente_a_proveedor')
+          .reduce((s, p) => s + p.monto, 0);
         saldo = Math.max(0, totalCompra - totalPagado);
         totalMostrar = totalCompra;
       }

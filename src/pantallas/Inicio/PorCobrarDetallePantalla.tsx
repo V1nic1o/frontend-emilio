@@ -17,7 +17,7 @@ import { InicioStackParamList, TabParamList } from '../../navegacion/tipos';
 import { usePedidos } from '../../hooks/usePedidos';
 import { useAsesoriasPendientes } from '../../hooks/useAsesorias';
 import { useWallet } from '../../contexto/WalletContext';
-import { ventasPorCobrarPendientes, tituloVentaParaListado } from '../../utilidades/pagosPendientes';
+import { ventasPorCobrarPendientes, tituloVentaParaListado, esVentaSoloProveedorSinCliente } from '../../utilidades/pagosPendientes';
 import { asesoriasServicio } from '../../servicios/asesorias.servicio';
 import { COLORES } from '../../estilos/colores';
 import { FUENTE, ESPACIADO, RADIO, estilosComunes } from '../../estilos/tema';
@@ -76,7 +76,7 @@ const PorCobrarDetallePantalla: React.FC<Props> = ({ navigation }) => {
     const out: Seccion[] = [];
     if (ventasList.length > 0) {
       out.push({
-        titulo: 'Ventas (por cobrar al cliente)',
+        titulo: 'Ventas (saldo pendiente)',
         data: ventasList.map(({ pedido, saldo }) => ({ tipo: 'venta' as const, pedido, saldo })),
       });
     }
@@ -128,7 +128,7 @@ const PorCobrarDetallePantalla: React.FC<Props> = ({ navigation }) => {
               <Text style={estilos.sub}>Venta · {formatearFecha(p.fecha)}</Text>
             </View>
             <View style={estilos.der}>
-              <EstadoBadge estado={estado} />
+              <EstadoBadge estado={estado} varianteCobro={esVentaSoloProveedorSinCliente(p)} />
               <Text style={estilos.monto}>{formatearMoneda(item.saldo)}</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={COLORES.textoDeshabilitado} />

@@ -72,9 +72,10 @@ const Inicio: React.FC = () => {
     void cargar();
   }, [finanzasEpoch, walletSeleccionado, cargar]);
 
+  /** En venta «solo proveedor» el saldo pendiente es el margen (no el bruto totalVenta − totalPagado). */
   const totalPorCobrarVentas = pedidos
     .filter((p) => p.tipo === 'venta')
-    .reduce((acc, p) => acc + Math.max(0, (p.resumen?.totalVenta ?? 0) - (p.resumen?.totalPagado ?? 0)), 0);
+    .reduce((acc, p) => acc + Math.max(0, p.resumen?.saldoPendiente ?? 0), 0);
   const totalPorCobrarAsesorias = asesoriasPendientes.reduce((acc, a) => acc + a.montoTotal, 0);
   const totalPorCobrar = totalPorCobrarVentas + totalPorCobrarAsesorias;
 
@@ -381,7 +382,7 @@ const Inicio: React.FC = () => {
         {(pedidosPendientes.length > 0 || asesoriasPendientes.length > 0) && (
           <>
             <View style={estilos.seccionTituloFila}>
-              <Text style={estilos.seccionTitulo}>Requieren pago</Text>
+              <Text style={estilos.seccionTitulo}>Requieren acción</Text>
               <TouchableOpacity onPress={onPressVerTodoRequierenPago}>
                 <Text style={estilos.verTodos}>Ir a…</Text>
               </TouchableOpacity>
@@ -423,7 +424,12 @@ const Inicio: React.FC = () => {
                     <Text style={estilos.pendFecha}>{formatearFecha(p.fecha)}</Text>
                   </View>
                   <View style={estilos.pendDer}>
-                    {p.resumen && <EstadoBadge estado={estadoMostrar} />}
+                    {p.resumen && (
+                      <EstadoBadge
+                        estado={estadoMostrar}
+                        varianteCobro={esVenta && esVentaSoloProveedorSinCliente(p) && saldoCliente > 0}
+                      />
+                    )}
                     <Text style={estilos.pendSaldo}>{formatearMoneda(saldoMostrar)}</Text>
                   </View>
                   <Ionicons name="chevron-forward" size={15} color={COLORES.textoDeshabilitado} style={{ marginLeft: 4 }} />
