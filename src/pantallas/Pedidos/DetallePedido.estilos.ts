@@ -72,6 +72,107 @@ export const estilos = StyleSheet.create({
   },
   progresoTexto: { fontSize: FUENTE.tamanoXs, color: 'rgba(255,255,255,0.85)' },
 
+  heroMetaDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.28)',
+    marginTop: ESPACIADO.sm,
+    marginBottom: ESPACIADO.md,
+  },
+  heroMetaNombreSection: {
+    marginTop: 0,
+    paddingTop: ESPACIADO.md,
+    marginBottom: 0,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(255,255,255,0.22)',
+  },
+  /** Misma jerarquía visual que Total / Impuesto; sin flex para que no compita con el botón */
+  heroMetaNombreEtiqueta: {
+    fontSize: 10,
+    fontWeight: FUENTE.pesoSemibold,
+    color: 'rgba(255,255,255,0.65)',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    marginBottom: ESPACIADO.xs,
+  },
+  heroMetaNombreValorFila: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: ESPACIADO.sm,
+  },
+  heroMetaNombreTextoWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  heroMetaNombreTexto: {
+    fontSize: FUENTE.tamanoBase,
+    fontWeight: FUENTE.pesoBold,
+    color: COLORES.blanco,
+    lineHeight: 22,
+  },
+  /** Compacto al lado del texto editado, no en la fila del título */
+  heroMetaEditBtnCompact: {
+    padding: 8,
+    borderRadius: RADIO.md,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    marginTop: 1,
+  },
+  /** Un solo bloque integrado (montos + referencia): evita la sensación de dos tarjetas dentro del hero */
+  heroMetaBloqueUnificado: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: RADIO.lg,
+    padding: ESPACIADO.md,
+    overflow: 'hidden',
+  },
+  /** Fila tipo comprobante: etiqueta izquierda, monto derecha */
+  heroMetaResumenFila: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    gap: ESPACIADO.md,
+  },
+  heroMetaResumenFilaSep: {
+    marginTop: ESPACIADO.sm,
+    paddingTop: ESPACIADO.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(255,255,255,0.22)',
+  },
+  heroMetaLabelResumen: {
+    fontSize: 10,
+    fontWeight: FUENTE.pesoSemibold,
+    color: 'rgba(255,255,255,0.65)',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    flex: 1,
+    flexShrink: 1,
+    paddingRight: ESPACIADO.sm,
+  },
+  heroMetaValorWrap: {
+    flexShrink: 0,
+    alignItems: 'flex-end',
+    maxWidth: '58%',
+  },
+  heroMetaTotalPrincipal: {
+    fontSize: FUENTE.tamanoGrande,
+    fontWeight: FUENTE.pesoBold,
+    color: COLORES.blanco,
+    textAlign: 'right',
+  },
+  heroMetaImpuestoValor: {
+    fontSize: FUENTE.tamanoGrande,
+    fontWeight: FUENTE.pesoBold,
+    color: COLORES.blanco,
+    textAlign: 'right',
+  },
+  heroMetaSinImpuesto: {
+    fontSize: FUENTE.tamanoPequeno,
+    fontWeight: FUENTE.pesoSemibold,
+    color: 'rgba(255,255,255,0.88)',
+    textAlign: 'right',
+  },
+
   card: {
     backgroundColor: COLORES.tarjeta,
     borderRadius: RADIO.xl,

@@ -1,4 +1,4 @@
-import React, { useCallback, useLayoutEffect } from 'react';
+import React, { useCallback, useLayoutEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,11 @@ import {
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
+  Modal,
+  Pressable,
+  useWindowDimensions,
 } from 'react-native';
+import { PieChart, LineChart } from 'react-native-chart-kit';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -19,6 +23,8 @@ import { useWallet } from '../../contexto/WalletContext';
 import { COLORES } from '../../estilos/colores';
 import { FUENTE, ESPACIADO, RADIO } from '../../estilos/tema';
 import { formatearMoneda } from '../../utilidades/formato';
+import type { MesEstadistica } from '../../tipos';
+import IndicadorWorkspaceHeader from '../../componentes/IndicadorWorkspaceHeader';
 
 type Props = NativeStackScreenProps<InicioStackParamList, 'DetalleGananciaMes'>;
 type TabNav = BottomTabNavigationProp<TabParamList>;
@@ -39,10 +45,27 @@ const MESES_LARGO = [
   'diciembre',
 ];
 
+function fraccionSegura(valor: number, base: number): number {
+  if (base <= 0) return 0;
+  return Math.min(1, Math.max(0, valor / base));
+}
+
+function ordenarMesesCronologico(meses: MesEstadistica[]): MesEstadistica[] {
+  return [...meses].sort((a, b) => {
+    if (a.anio !== b.anio) return a.anio - b.anio;
+    const ia = MESES_CORTO.indexOf(a.mes);
+    const ib = MESES_CORTO.indexOf(b.mes);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+  });
+}
+
 const DetalleGananciaMesPantalla: React.FC<Props> = ({ navigation }) => {
   const tabNavigation = useNavigation<TabNav>();
+  const { width: winW } = useWindowDimensions();
+  const chartWidth = Math.max(260, winW - ESPACIADO.md * 2);
   const { walletSeleccionado } = useWallet();
   const { estadisticas, cargando, error, cargar } = useEstadisticas();
+  const [modalInfo, setModalInfo] = useState(false);
 
   const hoy = new Date();
   const anio = hoy.getFullYear();
@@ -68,10 +91,96 @@ const DetalleGananciaMesPantalla: React.FC<Props> = ({ navigation }) => {
   const esNetaPositiva = gananciaNetaMes >= 0;
   const ivaMes = gananciaMes?.impuestosIva ?? 0;
 
+  const absP = Math.abs(netaMesPedidos);
+  const absA = Math.abs(netaMesAsesorias);
+
+  const chartConfig = useMemo(
+    () => ({
+      backgroundGradientFrom: COLORES.tarjeta,
+      backgroundGradientTo: COLORES.tarjeta,
+      decimalPlaces: 0,
+      color: (opacity = 1) => `rgba(79, 70, 229, ${opacity})`,
+      labelColor: () => COLORES.textoSecundario,
+      propsForDots: { r: '3', strokeWidth: '1', stroke: COLORES.primario },
+      propsForBackgroundLines: { strokeDasharray: '', stroke: COLORES.borde, strokeWidth: 1 },
+    }),
+    [],
+  );
+
+  const pieData = useMemo(() => {
+    const out: {
+      name: string;
+      population: number;
+      color: string;
+      legendFontColor: string;
+      legendFontSize: number;
+    }[] = [];
+    if (absP > 0.005) {
+      out.push({
+        name: 'Pedidos',
+        population: absP,
+        color: COLORES.primario,
+        legendFontColor: COLORES.textoSecundario,
+        legendFontSize: 11,
+      });
+    }
+    if (absA > 0.005) {
+      out.push({
+        name: 'Asesorías',
+        population: absA,
+        color: COLORES.morado,
+        legendFontColor: COLORES.textoSecundario,
+        legendFontSize: 11,
+      });
+    }
+    return out;
+  }, [absP, absA]);
+
+  const tendenciaChart = useMemo(() => {
+    const pm = estadisticas?.porMes;
+    if (!pm?.length) return null;
+    const ord = ordenarMesesCronologico(pm);
+    const last = ord.slice(-6);
+    if (last.length < 2) return null;
+    return {
+      labels: last.map((m) => (m.mes.length > 3 ? m.mes.slice(0, 3) : m.mes)),
+      data: last.map((m) => (Number.isFinite(m.gananciaNeta) ? m.gananciaNeta : 0)),
+    };
+  }, [estadisticas?.porMes]);
+
+  const baseBarrasFlujo = useMemo(() => {
+    if (!gananciaMes) return 1;
+    const ing = gananciaMes.ingresos;
+    if (ing > 0.005) return ing;
+    return Math.max(
+      gananciaMes.costoVentas,
+      gananciaBruta,
+      gananciaMes.gastos,
+      Math.abs(gananciaNetaMes),
+      ivaMes,
+      1,
+    );
+  }, [gananciaMes, gananciaBruta, gananciaNetaMes, ivaMes]);
+
   useLayoutEffect(() => {
     navigation.setOptions({
       title: 'Detalle del mes',
       headerBackTitle: '',
+      headerRight: () => (
+        <View style={estilosHeader.headerDerFila}>
+          <IndicadorWorkspaceHeader compacto />
+          <TouchableOpacity
+            style={estilosHeader.btnAyudaCabecera}
+            onPress={() => setModalInfo(true)}
+            activeOpacity={0.85}
+            accessibilityLabel="Ayuda: qué significa cada número"
+            accessibilityRole="button"
+          >
+            <Ionicons name="help-circle-outline" size={20} color={COLORES.primarioOscuro} />
+            <Text style={estilosHeader.btnAyudaCabeceraTxt}>Ayuda</Text>
+          </TouchableOpacity>
+        </View>
+      ),
     });
   }, [navigation]);
 
@@ -108,9 +217,18 @@ const DetalleGananciaMesPantalla: React.FC<Props> = ({ navigation }) => {
         showsVerticalScrollIndicator={false}
       >
         <Text style={estilos.periodoTitulo}>{tituloPeriodo}</Text>
-        <Text style={estilos.periodoSub}>
-          Mismos datos que la tarjeta «Este mes» en Inicio: ingresos de pedidos = cobros al cliente con fecha en este mes; costo prorrateado a lo cobrado.
-        </Text>
+
+        <TouchableOpacity
+          style={estilos.btnModalAyuda}
+          onPress={() => setModalInfo(true)}
+          activeOpacity={0.85}
+          accessibilityLabel="Qué significa cada número"
+          accessibilityRole="button"
+        >
+          <Ionicons name="reader-outline" size={22} color={COLORES.primario} />
+          <Text style={estilos.btnModalAyudaTxt}>Qué significa cada número</Text>
+          <Ionicons name="chevron-forward" size={18} color={COLORES.primarioOscuro} />
+        </TouchableOpacity>
 
         {cargando && !estadisticas ? (
           <View style={estilos.cargandoBox}>
@@ -122,8 +240,8 @@ const DetalleGananciaMesPantalla: React.FC<Props> = ({ navigation }) => {
           <View style={estilos.avisoSuave}>
             <Ionicons name="analytics-outline" size={22} color={COLORES.textoSecundario} />
             <Text style={estilos.avisoTxt}>
-              Todavía no hay movimientos registrados para este mes en estadísticas. Cuando tengas cobros o gastos con
-              fecha en {tituloPeriodo}, verás el resumen aquí.
+              Sin movimientos en estadísticas para {tituloPeriodo}. Cuando registres cobros o gastos con fecha en este mes,
+              verás el resumen aquí.
             </Text>
           </View>
         ) : (
@@ -136,144 +254,221 @@ const DetalleGananciaMesPantalla: React.FC<Props> = ({ navigation }) => {
               </Text>
             </View>
 
-            <Text style={estilos.seccionTitulo}>Ganancia neta por origen</Text>
-            <Text style={estilos.seccionSub}>
-              Los gastos del mes se reparten entre pedidos y asesorías según el margen bruto de cada uno (solo para
-              visualización; el total coincide con la tarjeta de Inicio).
-            </Text>
-            <View style={estilos.filaDos}>
-              <View style={estilos.tarjetaOrigen}>
-                <Text style={estilos.origenTitulo}>Pedidos</Text>
-                <Text style={estilos.origenMonto}>
-                  {netaMesPedidos >= 0 ? '' : '−'}
-                  {formatearMoneda(Math.abs(netaMesPedidos))}
-                </Text>
-                <Text style={estilos.origenDet}>Ingresos cobrados (ventas): {formatearMoneda(ingresosMesPedidos)}</Text>
-              </View>
-              <View style={estilos.tarjetaOrigen}>
-                <Text style={estilos.origenTitulo}>Asesorías</Text>
-                <Text style={estilos.origenMonto}>
-                  {netaMesAsesorias >= 0 ? '' : '−'}
-                  {formatearMoneda(Math.abs(netaMesAsesorias))}
-                </Text>
-                <Text style={estilos.origenDet}>Ingresos cobrados: {formatearMoneda(ingresosMesAsesorias)}</Text>
+            {tendenciaChart && (
+              <>
+                <Text style={estilos.seccionTitulo}>Ganancia neta reciente</Text>
+                <View style={estilos.chartCard}>
+                  <LineChart
+                    data={{
+                      labels: tendenciaChart.labels,
+                      datasets: [{ data: tendenciaChart.data }],
+                    }}
+                    width={chartWidth}
+                    height={158}
+                    chartConfig={chartConfig}
+                    bezier
+                    style={estilos.chartInner}
+                    withInnerLines
+                    withOuterLines={false}
+                    fromZero={false}
+                    formatYLabel={(v) => {
+                      const n = Number(v);
+                      if (!Number.isFinite(n)) return '';
+                      if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+                      if (Math.abs(n) >= 1000) return `${Math.round(n / 1000)}k`;
+                      return String(Math.round(n));
+                    }}
+                  />
+                </View>
+              </>
+            )}
+
+            <Text style={estilos.seccionTitulo}>Origen de la ganancia neta</Text>
+            <View style={estilos.tarjetaVisual}>
+              {pieData.length > 0 ? (
+                <PieChart
+                  data={pieData}
+                  width={chartWidth}
+                  height={178}
+                  chartConfig={chartConfig}
+                  accessor="population"
+                  backgroundColor="transparent"
+                  paddingLeft="0"
+                  absolute={false}
+                  hasLegend
+                />
+              ) : (
+                <View style={estilos.chartPlaceholder}>
+                  <Ionicons name="pie-chart-outline" size={28} color={COLORES.textoDeshabilitado} />
+                  <Text style={estilos.chartPlaceholderTxt}>Sin reparto entre pedidos y asesorías este mes</Text>
+                </View>
+              )}
+              <View style={estilos.filaDos}>
+                <View style={estilos.tarjetaOrigen}>
+                  <Text style={estilos.origenTitulo}>Pedidos</Text>
+                  <Text style={estilos.origenMonto}>
+                    {netaMesPedidos >= 0 ? '' : '−'}
+                    {formatearMoneda(Math.abs(netaMesPedidos))}
+                  </Text>
+                  <Text style={estilos.origenDet}>{formatearMoneda(ingresosMesPedidos)} cobrados</Text>
+                </View>
+                <View style={estilos.tarjetaOrigen}>
+                  <Text style={estilos.origenTitulo}>Asesorías</Text>
+                  <Text style={estilos.origenMonto}>
+                    {netaMesAsesorias >= 0 ? '' : '−'}
+                    {formatearMoneda(Math.abs(netaMesAsesorias))}
+                  </Text>
+                  <Text style={estilos.origenDet}>{formatearMoneda(ingresosMesAsesorias)} cobrados</Text>
+                </View>
               </View>
             </View>
 
-            <Text style={estilos.seccionTitulo}>Cómo se calcula el mes</Text>
+            <Text style={estilos.seccionTitulo}>Flujo del mes</Text>
             <View style={estilos.tabla}>
-              <FilaCalculo
-                icono="trending-up-outline"
-                etiqueta="Ingresos totales cobrados"
+              <BarraFlujo
+                etiqueta="Ingresos cobrados"
                 monto={gananciaMes.ingresos}
-                ayuda="Ventas cobradas en el mes + asesorías marcadas pagadas en el mes."
+                fraccion={fraccionSegura(gananciaMes.ingresos, baseBarrasFlujo)}
+                color={COLORES.exito}
               />
               <View style={estilos.tablaSep} />
-              <FilaCalculo
-                icono="cube-outline"
+              <BarraFlujo
                 etiqueta="Costo de ventas"
                 monto={gananciaMes.costoVentas}
-                prefijo="menos"
-                ayuda="Lo que pagaste por mercancía vendida (pedidos), en el mismo periodo."
+                fraccion={fraccionSegura(gananciaMes.costoVentas, baseBarrasFlujo)}
+                color={COLORES.advertencia}
+                prefijo="−"
               />
               <View style={estilos.tablaSep} />
-              <FilaCalculo
-                icono="layers-outline"
-                etiqueta="Margen bruto (ganancia)"
+              <BarraFlujo
+                etiqueta="Margen bruto"
                 monto={gananciaBruta}
-                destacado
-                ayuda="Ingresos menos costo de ventas, antes de gastos generales."
+                fraccion={fraccionSegura(gananciaBruta, baseBarrasFlujo)}
+                color={COLORES.primario}
               />
               <View style={estilos.tablaSep} />
-              <FilaCalculo
-                icono="receipt-outline"
+              <BarraFlujo
                 etiqueta="Gastos del mes"
                 monto={gananciaMes.gastos}
-                prefijo="menos"
-                ayuda="Suma de gastos con fecha en este mes."
+                fraccion={fraccionSegura(gananciaMes.gastos, baseBarrasFlujo)}
+                color={COLORES.peligro}
+                prefijo="−"
               />
               {ivaMes > 0.005 && (
                 <>
                   <View style={estilos.tablaSep} />
-                  <FilaCalculo
-                    icono="pricetag-outline"
-                    etiqueta="IVA (ventas con impuesto)"
+                  <BarraFlujo
+                    etiqueta="IVA (informativo)"
                     monto={ivaMes}
-                    ayuda="Impuesto asociado a ventas cobradas en el mes (informativo)."
+                    fraccion={fraccionSegura(ivaMes, baseBarrasFlujo)}
+                    color={COLORES.textoSecundario}
                   />
                 </>
               )}
               <View style={estilos.tablaSepGruesa} />
-              <FilaCalculo
-                icono="stats-chart-outline"
+              <BarraFlujo
                 etiqueta="Ganancia neta"
-                monto={gananciaNetaMes}
+                monto={Math.abs(gananciaNetaMes)}
+                fraccion={fraccionSegura(Math.abs(gananciaNetaMes), baseBarrasFlujo)}
+                color={gananciaNetaMes >= 0 ? COLORES.exito : COLORES.peligro}
                 destacado
-                ayuda="Margen bruto menos gastos del mes."
+                prefijo={gananciaNetaMes >= 0 ? undefined : '−'}
               />
             </View>
 
-            <Text style={estilos.seccionTitulo}>¿Querés revisar los datos?</Text>
-            <Text style={estilos.seccionSub}>
-              La lista de pedidos y los gastos son donde se registran los movimientos que alimentan este resumen.
-            </Text>
+            <Text style={estilos.seccionTitulo}>Ir a los datos</Text>
             <TouchableOpacity style={estilos.btnAccion} onPress={irPedidos} activeOpacity={0.85}>
               <Ionicons name="cube-outline" size={22} color={COLORES.primario} />
               <View style={estilos.btnAccionTxt}>
-                <Text style={estilos.btnAccionTitulo}>Ir a pedidos</Text>
-                <Text style={estilos.btnAccionSub}>Ventas, compras y cobros</Text>
+                <Text style={estilos.btnAccionTitulo}>Pedidos</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={COLORES.textoDeshabilitado} />
             </TouchableOpacity>
             <TouchableOpacity style={[estilos.btnAccion, { marginTop: ESPACIADO.sm }]} onPress={irGastos} activeOpacity={0.85}>
               <Ionicons name="wallet-outline" size={22} color={COLORES.morado} />
               <View style={estilos.btnAccionTxt}>
-                <Text style={estilos.btnAccionTitulo}>Ir a gastos</Text>
-                <Text style={estilos.btnAccionSub}>Egresos del workspace</Text>
+                <Text style={estilos.btnAccionTitulo}>Gastos</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={COLORES.textoDeshabilitado} />
             </TouchableOpacity>
           </>
         )}
       </ScrollView>
+
+      <Modal animationType="fade" transparent visible={modalInfo} onRequestClose={() => setModalInfo(false)}>
+        <Pressable style={estilos.modalOverlay} onPress={() => setModalInfo(false)}>
+          <Pressable style={estilos.modalCard} onPress={(e) => e.stopPropagation()}>
+            <View style={estilos.modalHeader}>
+              <Text style={estilos.modalTitulo}>Conceptos del mes</Text>
+              <TouchableOpacity onPress={() => setModalInfo(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close" size={24} color={COLORES.textoSecundario} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={estilos.modalScroll} showsVerticalScrollIndicator={false}>
+              <Text style={estilos.modalPar}>
+                <Text style={estilos.modalBold}>Ingresos cobrados: </Text>
+                ventas cobradas en el mes más asesorías marcadas pagadas en el mes.
+              </Text>
+              <Text style={estilos.modalPar}>
+                <Text style={estilos.modalBold}>Costo de ventas: </Text>
+                lo pagado por mercancía vendida en pedidos (mismo periodo).
+              </Text>
+              <Text style={estilos.modalPar}>
+                <Text style={estilos.modalBold}>Margen bruto: </Text>
+                ingresos menos costo de ventas, antes de gastos generales.
+              </Text>
+              <Text style={estilos.modalPar}>
+                <Text style={estilos.modalBold}>Gastos del mes: </Text>
+                suma de gastos con fecha en este mes (se reparten entre pedidos y asesorías solo para la vista por origen;
+                el total coincide con Inicio).
+              </Text>
+              <Text style={estilos.modalPar}>
+                <Text style={estilos.modalBold}>IVA: </Text>
+                informativo, asociado a ventas cobradas con impuesto.
+              </Text>
+              <Text style={[estilos.modalPar, { marginBottom: 0 }]}>
+                <Text style={estilos.modalBold}>Ganancia neta: </Text>
+                margen bruto menos gastos del mes.
+              </Text>
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 };
 
-type Ion = React.ComponentProps<typeof Ionicons>['name'];
-
-function FilaCalculo({
-  icono,
+function BarraFlujo({
   etiqueta,
   monto,
-  ayuda,
+  fraccion,
+  color,
   destacado,
   prefijo,
 }: {
-  icono: Ion;
   etiqueta: string;
   monto: number;
-  ayuda: string;
+  fraccion: number;
+  color: string;
   destacado?: boolean;
-  /** Muestra el monto con signo menos (costos / gastos aunque el número sea positivo). */
-  prefijo?: 'menos';
+  prefijo?: string;
 }) {
-  const esMenos = prefijo === 'menos';
-  const negativo = monto < 0;
-  const signo = esMenos ? '−' : negativo ? '−' : '';
+  const anchoPct = `${Math.round(fraccion * 1000) / 10}%` as `${number}%`;
+  const signo = prefijo === '−' ? '−' : monto < 0 ? '−' : '';
   const abs = Math.abs(monto);
-  const colorValor =
-    destacado && !esMenos ? (monto >= 0 ? COLORES.exito : COLORES.peligro) : COLORES.texto;
   return (
-    <View style={estilos.filaCalc}>
-      <Ionicons name={icono} size={20} color={COLORES.textoSecundario} style={{ marginTop: 2 }} />
-      <View style={estilos.filaCalcTxt}>
-        <Text style={[estilos.calcEtiqueta, destacado && estilos.calcEtiquetaDest]}>{etiqueta}</Text>
-        <Text style={[estilos.calcValor, { color: colorValor }, destacado && estilos.calcValorDest]}>
+    <View style={[estilos.barraFlujoFila, destacado && estilos.barraFlujoFilaDest]}>
+      <View style={estilos.barraFlujoCab}>
+        <Text style={[estilos.barraFlujoEtiqueta, destacado && estilos.barraFlujoEtiquetaDest]} numberOfLines={2}>
+          {etiqueta}
+        </Text>
+        <Text style={[estilos.barraFlujoMonto, destacado && estilos.barraFlujoMontoDest]}>
           {signo}
           {formatearMoneda(abs)}
         </Text>
-        <Text style={estilos.calcAyuda}>{ayuda}</Text>
+      </View>
+      <View style={estilos.barraFlujoTrack}>
+        <View style={[estilos.barraFlujoFill, { width: anchoPct as any, backgroundColor: color }]} />
       </View>
     </View>
   );
@@ -287,9 +482,26 @@ const estilos = StyleSheet.create({
     fontWeight: FUENTE.pesoBold,
     color: COLORES.texto,
     textTransform: 'capitalize',
-    marginBottom: ESPACIADO.xs,
+    marginBottom: ESPACIADO.sm,
   },
-  periodoSub: { fontSize: FUENTE.tamanoPequeno, color: COLORES.textoSecundario, lineHeight: 20, marginBottom: ESPACIADO.lg },
+  btnModalAyuda: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: ESPACIADO.sm,
+    backgroundColor: COLORES.primarioClaro,
+    paddingVertical: ESPACIADO.sm + 2,
+    paddingHorizontal: ESPACIADO.md,
+    borderRadius: RADIO.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(79, 70, 229, 0.28)',
+    marginBottom: ESPACIADO.md,
+  },
+  btnModalAyudaTxt: {
+    flex: 1,
+    fontSize: FUENTE.tamanoBase,
+    fontWeight: FUENTE.pesoSemibold,
+    color: COLORES.primarioOscuro,
+  },
   cargandoBox: { paddingVertical: ESPACIADO.xl, alignItems: 'center' },
   errorTxt: { color: COLORES.peligro, fontSize: FUENTE.tamanoBase, padding: ESPACIADO.md },
   avisoSuave: {
@@ -319,9 +531,43 @@ const estilos = StyleSheet.create({
     letterSpacing: 0.6,
     marginBottom: ESPACIADO.xs,
   },
-  seccionSub: { fontSize: FUENTE.tamanoPequeno, color: COLORES.textoSecundario, lineHeight: 20, marginBottom: ESPACIADO.md },
 
-  filaDos: { flexDirection: 'row', gap: ESPACIADO.sm, marginBottom: ESPACIADO.lg },
+  tarjetaVisual: {
+    marginBottom: ESPACIADO.lg,
+  },
+  chartCard: {
+    backgroundColor: COLORES.tarjeta,
+    borderRadius: RADIO.xl,
+    borderWidth: 1,
+    borderColor: COLORES.borde,
+    paddingVertical: ESPACIADO.sm,
+    paddingHorizontal: ESPACIADO.xs,
+    marginBottom: ESPACIADO.lg,
+    overflow: 'hidden',
+    alignItems: 'center',
+  },
+  chartInner: {
+    marginVertical: ESPACIADO.xs,
+    borderRadius: RADIO.lg,
+  },
+  chartPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: ESPACIADO.xl,
+    paddingHorizontal: ESPACIADO.md,
+    backgroundColor: COLORES.grisClaro,
+    borderRadius: RADIO.lg,
+    marginBottom: ESPACIADO.sm,
+    gap: ESPACIADO.sm,
+  },
+  chartPlaceholderTxt: {
+    fontSize: FUENTE.tamanoPequeno,
+    color: COLORES.textoSecundario,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+
+  filaDos: { flexDirection: 'row', gap: ESPACIADO.sm },
   tarjetaOrigen: {
     flex: 1,
     backgroundColor: COLORES.tarjeta,
@@ -342,15 +588,36 @@ const estilos = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORES.borde,
   },
-  filaCalc: { flexDirection: 'row', gap: ESPACIADO.sm, alignItems: 'flex-start' },
-  filaCalcTxt: { flex: 1, minWidth: 0 },
-  calcEtiqueta: { fontSize: FUENTE.tamanoBase, fontWeight: FUENTE.pesoSemibold, color: COLORES.texto },
-  calcEtiquetaDest: { fontSize: FUENTE.tamanoMedio },
-  calcValor: { fontSize: FUENTE.tamanoMedio, fontWeight: FUENTE.pesoBold, marginTop: 4 },
-  calcValorDest: { fontSize: FUENTE.tamanoGrande },
-  calcAyuda: { fontSize: FUENTE.tamanoXs, color: COLORES.textoSecundario, marginTop: 6, lineHeight: 17 },
-  tablaSep: { height: 1, backgroundColor: COLORES.borde, marginVertical: ESPACIADO.md, marginLeft: 28 },
-  tablaSepGruesa: { height: 2, backgroundColor: COLORES.bordeOscuro, marginVertical: ESPACIADO.md, marginLeft: 0 },
+  barraFlujoFila: { marginBottom: ESPACIADO.sm },
+  barraFlujoFilaDest: { marginBottom: ESPACIADO.md },
+  barraFlujoCab: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: ESPACIADO.sm,
+    marginBottom: 8,
+  },
+  barraFlujoEtiqueta: {
+    flex: 1,
+    fontSize: FUENTE.tamanoPequeno,
+    fontWeight: FUENTE.pesoSemibold,
+    color: COLORES.texto,
+  },
+  barraFlujoEtiquetaDest: { fontSize: FUENTE.tamanoBase },
+  barraFlujoMonto: { fontSize: FUENTE.tamanoMedio, fontWeight: FUENTE.pesoBold, color: COLORES.texto },
+  barraFlujoMontoDest: { fontSize: FUENTE.tamanoGrande },
+  barraFlujoTrack: {
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: COLORES.grisClaro,
+    overflow: 'hidden',
+  },
+  barraFlujoFill: {
+    height: '100%',
+    borderRadius: 5,
+  },
+  tablaSep: { height: 1, backgroundColor: COLORES.borde, marginVertical: ESPACIADO.sm, marginLeft: 0 },
+  tablaSepGruesa: { height: 2, backgroundColor: COLORES.bordeOscuro, marginVertical: ESPACIADO.sm, marginLeft: 0 },
 
   btnAccion: {
     flexDirection: 'row',
@@ -364,7 +631,59 @@ const estilos = StyleSheet.create({
   },
   btnAccionTxt: { flex: 1, minWidth: 0 },
   btnAccionTitulo: { fontSize: FUENTE.tamanoBase, fontWeight: FUENTE.pesoBold, color: COLORES.texto },
-  btnAccionSub: { fontSize: FUENTE.tamanoXs, color: COLORES.textoSecundario, marginTop: 2 },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    padding: ESPACIADO.lg,
+  },
+  modalCard: {
+    backgroundColor: COLORES.tarjeta,
+    borderRadius: RADIO.xl,
+    maxHeight: '78%',
+    padding: ESPACIADO.md,
+    borderWidth: 1,
+    borderColor: COLORES.borde,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: ESPACIADO.sm,
+  },
+  modalTitulo: { fontSize: FUENTE.tamanoGrande, fontWeight: FUENTE.pesoBold, color: COLORES.texto, flex: 1 },
+  modalScroll: { maxHeight: 400 },
+  modalPar: { fontSize: FUENTE.tamanoPequeno, color: COLORES.textoSecundario, lineHeight: 21, marginBottom: ESPACIADO.md },
+  modalBold: { fontWeight: FUENTE.pesoBold, color: COLORES.texto },
+});
+
+/** Estilos solo para el grupo derecho del header (workspace + ayuda). */
+const estilosHeader = StyleSheet.create({
+  headerDerFila: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: ESPACIADO.xs,
+    flexShrink: 1,
+    paddingRight: ESPACIADO.sm,
+    paddingLeft: ESPACIADO.xs,
+  },
+  btnAyudaCabecera: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: RADIO.md,
+    backgroundColor: COLORES.primarioClaro,
+    borderWidth: 1,
+    borderColor: 'rgba(79, 70, 229, 0.28)',
+  },
+  btnAyudaCabeceraTxt: {
+    fontSize: FUENTE.tamanoPequeno,
+    fontWeight: FUENTE.pesoSemibold,
+    color: COLORES.primarioOscuro,
+  },
 });
 
 export default DetalleGananciaMesPantalla;
