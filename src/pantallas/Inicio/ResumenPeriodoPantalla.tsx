@@ -15,7 +15,7 @@ import {
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { LineChart, PieChart } from 'react-native-chart-kit';
+import { BarChart, LineChart, PieChart } from 'react-native-chart-kit';
 import { Ionicons } from '@expo/vector-icons';
 import { useWallet } from '../../contexto/WalletContext';
 import { estadisticasServicio } from '../../servicios/estadisticas.servicio';
@@ -33,6 +33,7 @@ import {
 } from '../../utilidades/agrupacionMesFinanzas';
 import type { EstadisticasRango, Gasto, IngresoPersonal, MesEstadistica } from '../../tipos';
 import IndicadorWorkspaceHeader from '../../componentes/IndicadorWorkspaceHeader';
+import { CapaBlobsAtmosfera, estilosFondoAtmosfera } from '../../componentes/FondoAtmosfera';
 
 type PresetPeriodo = 'este_mes' | 'personalizado';
 
@@ -92,6 +93,20 @@ function ordenarMesesEstadisticas(meses: MesEstadistica[]): MesEstadistica[] {
     const ib = MESES_CORTO_RESUMEN.indexOf(b.mes as (typeof MESES_CORTO_RESUMEN)[number]);
     return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
   });
+}
+
+/**
+ * react-native-chart-kit alinea cada valor con `labels[i]` y usa la longitud máxima de las series para el eje X.
+ * Si hubiera más (o menos) puntos que etiquetas, el gráfico se deforma; recortamos/rellenamos con 0 de forma segura.
+ */
+function serieLineChartAlineada(valores: number[], nEtiquetas: number): number[] {
+  const n = Math.max(0, nEtiquetas);
+  const out: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const v = valores[i];
+    out.push(typeof v === 'number' && Number.isFinite(v) ? v : 0);
+  }
+  return out;
 }
 
 function etiquetaRango(desde: Date, hasta: Date): string {
@@ -299,22 +314,32 @@ const ResumenPeriodoPantalla: React.FC = () => {
     return Math.max(base, n * 46);
   }, [winW, chartLabels.length]);
 
+  /** Ancho cómodo para BarChart de 1 mes (evita barra aplastada). */
+  const barChartWidthUnMes = useMemo(
+    () => Math.min(Math.max(winW - ESPACIADO.md * 2 - ESPACIADO.lg * 2, 280), 400),
+    [winW],
+  );
+
   const lineDataNeta = useMemo(() => {
-    if (esPersonal) {
-      return mesesPersonalRango.map((m) => (Number.isFinite(m.balance) ? m.balance : 0));
-    }
-    return mesesEmpresaOrd.map((m) => (Number.isFinite(m.gananciaNeta) ? m.gananciaNeta : 0));
-  }, [esPersonal, mesesPersonalRango, mesesEmpresaOrd]);
+    const raw = esPersonal
+      ? mesesPersonalRango.map((m) => (Number.isFinite(m.balance) ? m.balance : 0))
+      : mesesEmpresaOrd.map((m) => (Number.isFinite(m.gananciaNeta) ? m.gananciaNeta : 0));
+    return serieLineChartAlineada(raw, chartLabels.length);
+  }, [esPersonal, mesesPersonalRango, mesesEmpresaOrd, chartLabels.length]);
 
   const lineDataIngresos = useMemo(() => {
-    if (esPersonal) return mesesPersonalRango.map((m) => m.ingresos);
-    return mesesEmpresaOrd.map((m) => m.ingresos);
-  }, [esPersonal, mesesPersonalRango, mesesEmpresaOrd]);
+    const raw = esPersonal
+      ? mesesPersonalRango.map((m) => (Number.isFinite(m.ingresos) ? m.ingresos : 0))
+      : mesesEmpresaOrd.map((m) => (Number.isFinite(m.ingresos) ? m.ingresos : 0));
+    return serieLineChartAlineada(raw, chartLabels.length);
+  }, [esPersonal, mesesPersonalRango, mesesEmpresaOrd, chartLabels.length]);
 
   const lineDataGastos = useMemo(() => {
-    if (esPersonal) return mesesPersonalRango.map((m) => m.gastos);
-    return mesesEmpresaOrd.map((m) => m.gastos);
-  }, [esPersonal, mesesPersonalRango, mesesEmpresaOrd]);
+    const raw = esPersonal
+      ? mesesPersonalRango.map((m) => (Number.isFinite(m.gastos) ? m.gastos : 0))
+      : mesesEmpresaOrd.map((m) => (Number.isFinite(m.gastos) ? m.gastos : 0));
+    return serieLineChartAlineada(raw, chartLabels.length);
+  }, [esPersonal, mesesPersonalRango, mesesEmpresaOrd, chartLabels.length]);
 
   /** Gráficos sobre fondo claro (tarjeta). */
   const chartConfigClaro = useMemo(
@@ -335,21 +360,40 @@ const ResumenPeriodoPantalla: React.FC = () => {
     [esPersonal, accent],
   );
 
+  /** Modo Flujo: dos líneas con color propio; sin esto la librería pinta ambas sombras con `chartConfig.color`. */
+  const chartConfigFlujo = useMemo(
+    () => ({
+      ...chartConfigClaro,
+      useShadowColorFromDataset: true,
+    }),
+    [chartConfigClaro],
+  );
+
+  /** BarChart de un solo mes (valores encima de barras). */
+  const chartConfigBarUnMes = useMemo(
+    () => ({
+      ...chartConfigClaro,
+      barPercentage: 0.55,
+      formatTopBarValue: (value: number) => {
+        const v = Number(value);
+        if (!Number.isFinite(v)) return '';
+        if (Math.abs(v) >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+        if (Math.abs(v) >= 1000) return `${Math.round(v / 1000)}k`;
+        return String(Math.round(v));
+      },
+    }),
+    [chartConfigClaro],
+  );
+
   const atmosphera = useMemo(
     () =>
       esPersonal
         ? {
-            blobA: 'rgba(13, 148, 136, 0.16)',
-            blobB: 'rgba(94, 234, 212, 0.14)',
-            shellTrack: 'rgba(204, 251, 241, 0.85)',
             kpiIngresoBg: '#ECFEFF',
             kpiGastoBg: '#FFF1F2',
             kpiNeutroBg: '#F8FAFC',
           }
         : {
-            blobA: 'rgba(79, 70, 229, 0.14)',
-            blobB: 'rgba(165, 180, 252, 0.2)',
-            shellTrack: 'rgba(238, 242, 255, 0.95)',
             kpiIngresoBg: '#EEF2FF',
             kpiGastoBg: '#FFF1F2',
             kpiNeutroBg: '#F8FAFC',
@@ -496,14 +540,11 @@ const ResumenPeriodoPantalla: React.FC = () => {
       : '—';
 
   return (
-    <SafeAreaView style={estilos.safe} edges={['bottom']}>
-      <View style={estilos.blobsWrap} pointerEvents="none">
-        <View style={[estilos.blob, estilos.blobA, { backgroundColor: atmosphera.blobA }]} />
-        <View style={[estilos.blob, estilos.blobB, { backgroundColor: atmosphera.blobB }]} />
-      </View>
+    <SafeAreaView style={estilosFondoAtmosfera.safeArea} edges={['bottom']}>
+      <CapaBlobsAtmosfera esPersonal={esPersonal} />
 
       <ScrollView
-        style={estilos.scrollFront}
+        style={estilosFondoAtmosfera.contenidoDelante}
         contentContainerStyle={estilos.scroll}
         refreshControl={<RefreshControl refreshing={cargando} onRefresh={refrescar} tintColor={accent} />}
         showsVerticalScrollIndicator={false}
@@ -792,7 +833,27 @@ const ResumenPeriodoPantalla: React.FC = () => {
                     />
                   </ScrollView>
                 ) : modoGrafico === 'neta' && !hayMultiMes ? (
-                  <Text style={estilos.sinDatosGraf}>≥ 2 meses</Text>
+                  <>
+                    <Text style={estilos.avisoUnMesSerie}>
+                      Mostrás un solo mes: la tendencia en línea requiere 2 o más meses (elegí «Rango»). Abajo,{' '}
+                      {esPersonal ? 'balance' : 'ganancia neta'} de ese mes.
+                    </Text>
+                    <BarChart
+                      data={{
+                        labels: [chartLabels[0] ?? '—'],
+                        datasets: [{ data: [lineDataNeta[0] ?? 0] }],
+                      }}
+                      width={barChartWidthUnMes}
+                      height={200}
+                      yAxisLabel=""
+                      yAxisSuffix=""
+                      chartConfig={chartConfigBarUnMes}
+                      style={{ ...estilos.chartInner, paddingRight: 24 }}
+                      fromZero
+                      showValuesOnTopOfBars
+                      withInnerLines
+                    />
+                  </>
                 ) : modoGrafico === 'flujo' && hayMultiMes ? (
                   <>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -807,7 +868,7 @@ const ResumenPeriodoPantalla: React.FC = () => {
                         }}
                         width={chartWidth}
                         height={228}
-                        chartConfig={chartConfigClaro}
+                        chartConfig={chartConfigFlujo}
                         bezier
                         style={estilos.chartInner}
                         withInnerLines
@@ -833,9 +894,48 @@ const ResumenPeriodoPantalla: React.FC = () => {
                       </View>
                     </View>
                   </>
-                ) : (
-                  <Text style={estilos.sinDatosGraf}>≥ 2 meses</Text>
-                )}
+                ) : modoGrafico === 'flujo' && !hayMultiMes ? (
+                  <>
+                    <Text style={estilos.avisoUnMesSerie}>
+                      Un solo mes en el periodo: comparación ingresos vs gastos. Para evolución mes a mes usá «Rango» con varios meses.
+                    </Text>
+                    <BarChart
+                      data={{
+                        labels: ['Ingresos', 'Gastos'],
+                        datasets: [
+                          {
+                            data: [lineDataIngresos[0] ?? 0, lineDataGastos[0] ?? 0],
+                            colors: [
+                              (opacity = 1) => `rgba(52, 211, 153, ${opacity})`,
+                              (opacity = 1) => `rgba(251, 113, 133, ${opacity})`,
+                            ],
+                          },
+                        ],
+                      }}
+                      width={barChartWidthUnMes}
+                      height={216}
+                      yAxisLabel=""
+                      yAxisSuffix=""
+                      chartConfig={{ ...chartConfigBarUnMes, barPercentage: 0.62 }}
+                      style={{ ...estilos.chartInner, paddingRight: 16 }}
+                      fromZero
+                      showValuesOnTopOfBars
+                      withInnerLines
+                      withCustomBarColorFromData
+                      flatColor
+                    />
+                    <View style={estilos.leyendaFlujo}>
+                      <View style={estilos.leyendaItem}>
+                        <View style={[estilos.leyendaDot, { backgroundColor: '#34D399' }]} />
+                        <Text style={estilos.leyendaTxtFlujo}>Ingresos</Text>
+                      </View>
+                      <View style={estilos.leyendaItem}>
+                        <View style={[estilos.leyendaDot, { backgroundColor: '#FB7185' }]} />
+                        <Text style={estilos.leyendaTxtFlujo}>Gastos</Text>
+                      </View>
+                    </View>
+                  </>
+                ) : null}
               </View>
             ) : (
               <View style={estilos.avisoOscura}>
@@ -969,31 +1069,6 @@ const ResumenPeriodoPantalla: React.FC = () => {
 };
 
 const estilos = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F1F5F9' },
-  blobsWrap: {
-    ...StyleSheet.absoluteFillObject,
-    overflow: 'hidden',
-    zIndex: 0,
-  },
-  blob: {
-    position: 'absolute',
-    opacity: 0.95,
-  },
-  blobA: {
-    width: 300,
-    height: 300,
-    borderRadius: 150,
-    top: -120,
-    left: -90,
-  },
-  blobB: {
-    width: 260,
-    height: 260,
-    borderRadius: 130,
-    bottom: -80,
-    right: -70,
-  },
-  scrollFront: { flex: 1, zIndex: 1 },
   scroll: { padding: ESPACIADO.md, paddingBottom: ESPACIADO.xxl },
 
   workspaceRow: { marginBottom: ESPACIADO.md },
@@ -1299,6 +1374,16 @@ const estilos = StyleSheet.create({
     color: COLORES.textoSecundario,
     textAlign: 'center',
     paddingVertical: ESPACIADO.lg,
+    fontWeight: FUENTE.pesoSemibold,
+  },
+
+  avisoUnMesSerie: {
+    fontSize: FUENTE.tamanoPequeno,
+    color: COLORES.textoSecundario,
+    textAlign: 'center',
+    lineHeight: 20,
+    paddingHorizontal: ESPACIADO.sm,
+    paddingBottom: ESPACIADO.sm,
     fontWeight: FUENTE.pesoSemibold,
   },
 

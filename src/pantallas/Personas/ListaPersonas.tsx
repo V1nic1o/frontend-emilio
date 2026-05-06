@@ -20,6 +20,9 @@ import { Persona } from '../../tipos';
 import CargandoSpinner from '../../componentes/CargandoSpinner';
 import ErrorMensaje from '../../componentes/ErrorMensaje';
 import FAB from '../../componentes/FAB';
+import { CapaBlobsAtmosfera, estilosFondoAtmosfera } from '../../componentes/FondoAtmosfera';
+import { useWallet } from '../../contexto/WalletContext';
+import { esWalletPersonal } from '../../utilidades/wallet';
 import { COLORES } from '../../estilos/colores';
 import { FUENTE, ESPACIADO, RADIO, estilosComunes } from '../../estilos/tema';
 import { formatearMoneda } from '../../utilidades/formato';
@@ -37,6 +40,7 @@ const COL_GAP = ESPACIADO.sm;
 const PADDING = ESPACIADO.md;
 
 const ListaPersonas: React.FC<Props> = ({ navigation }) => {
+  const { walletSeleccionado } = useWallet();
   const { width } = useWindowDimensions();
   const cardWidth = useMemo(() => (width - PADDING * 2 - COL_GAP) / 2, [width]);
   const { personas, cargando: cargandoPersonas, error, cargar: cargarPersonas } = usePersonas();
@@ -186,73 +190,76 @@ const ListaPersonas: React.FC<Props> = ({ navigation }) => {
   }
 
   return (
-    <SafeAreaView style={estilosComunes.contenedor} edges={['bottom']}>
+    <SafeAreaView style={[estilosComunes.contenedor, estilosFondoAtmosfera.safeArea]} edges={['bottom']}>
+      <CapaBlobsAtmosfera esPersonal={esWalletPersonal(walletSeleccionado)} />
+      <View style={estilosFondoAtmosfera.contenidoDelante}>
+        {/* Descripción + filtros */}
+        <View style={estilos.topBar}>
+          <Text style={estilos.descTexto}>
+            Gestioná tus clientes y proveedores. Mirá sus saldos y pedidos desde aquí.
+          </Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={estilos.filtrosScroll}
+          >
+            {FILTROS.map((f) => {
+              const activo = filtroActivo === f.id;
+              const colorActivo = f.id === 'cliente' ? COLORES.cliente : f.id === 'proveedor' ? COLORES.proveedor : COLORES.primario;
+              return (
+                <TouchableOpacity
+                  key={f.id}
+                  style={[estilos.filtroBtn, activo && { backgroundColor: colorActivo }]}
+                  onPress={() => setFiltroActivo(f.id)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name={f.icono} size={13} color={activo ? '#fff' : COLORES.textoSecundario} />
+                  <Text style={[estilos.filtroTexto, activo && { color: '#fff' }]}>{f.etiqueta}</Text>
+                  {conteos[f.id] > 0 && (
+                    <View style={[estilos.filtroBadge, activo && { backgroundColor: 'rgba(255,255,255,0.25)' }]}>
+                      <Text style={[estilos.filtroBadgeTexto, activo && { color: '#fff' }]}>{conteos[f.id]}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
 
-      {/* Descripción + filtros */}
-      <View style={estilos.topBar}>
-        <Text style={estilos.descTexto}>
-          Gestioná tus clientes y proveedores. Mirá sus saldos y pedidos desde aquí.
-        </Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={estilos.filtrosScroll}
-        >
-          {FILTROS.map((f) => {
-            const activo = filtroActivo === f.id;
-            const colorActivo = f.id === 'cliente' ? COLORES.cliente : f.id === 'proveedor' ? COLORES.proveedor : COLORES.primario;
-            return (
-              <TouchableOpacity
-                key={f.id}
-                style={[estilos.filtroBtn, activo && { backgroundColor: colorActivo }]}
-                onPress={() => setFiltroActivo(f.id)}
-                activeOpacity={0.8}
-              >
-                <Ionicons name={f.icono} size={13} color={activo ? '#fff' : COLORES.textoSecundario} />
-                <Text style={[estilos.filtroTexto, activo && { color: '#fff' }]}>{f.etiqueta}</Text>
-                {conteos[f.id] > 0 && (
-                  <View style={[estilos.filtroBadge, activo && { backgroundColor: 'rgba(255,255,255,0.25)' }]}>
-                    <Text style={[estilos.filtroBadgeTexto, activo && { color: '#fff' }]}>{conteos[f.id]}</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
-
-      <FlatList
-        data={personasFiltradas.length === 0 ? [] : filas}
-        keyExtractor={(_, i) => String(i)}
-        extraData={{ width, ap: asesoriasPendientes.length }}
-        renderItem={renderFila}
-        contentContainerStyle={[estilos.lista, personasFiltradas.length === 0 && estilos.listaVacia]}
-        refreshControl={
-          <RefreshControl
-            refreshing={cargandoPersonas || cargandoPedidos || cargandoAsesoriasPend}
-            onRefresh={cargar}
-            tintColor={COLORES.primario}
-          />
-        }
-        showsVerticalScrollIndicator={false}
-        ItemSeparatorComponent={() => <View style={{ height: COL_GAP }} />}
-        ListEmptyComponent={
-          <View style={estilos.vacio}>
-            <View style={estilos.vacioIconBox}>
-              <Ionicons name="people-outline" size={44} color={COLORES.textoDeshabilitado} />
+        <FlatList
+          style={{ flex: 1 }}
+          data={personasFiltradas.length === 0 ? [] : filas}
+          keyExtractor={(_, i) => String(i)}
+          extraData={{ width, ap: asesoriasPendientes.length }}
+          renderItem={renderFila}
+          contentContainerStyle={[estilos.lista, personasFiltradas.length === 0 && estilos.listaVacia]}
+          refreshControl={
+            <RefreshControl
+              refreshing={cargandoPersonas || cargandoPedidos || cargandoAsesoriasPend}
+              onRefresh={cargar}
+              tintColor={COLORES.primario}
+            />
+          }
+          showsVerticalScrollIndicator={false}
+          ItemSeparatorComponent={() => <View style={{ height: COL_GAP }} />}
+          ListEmptyComponent={
+            <View style={estilos.vacio}>
+              <View style={estilos.vacioIconBox}>
+                <Ionicons name="people-outline" size={44} color={COLORES.textoDeshabilitado} />
+              </View>
+              <Text style={estilos.vacioTitulo}>
+                {filtroActivo === 'todos' ? 'Sin personas aún' : filtroActivo === 'cliente' ? 'Sin clientes' : 'Sin proveedores'}
+              </Text>
+              <Text style={estilos.vacioTexto}>
+                {filtroActivo === 'todos'
+                  ? 'Tocá + para agregar tu primer cliente o proveedor'
+                  : `No tenés ${filtroActivo === 'cliente' ? 'clientes' : 'proveedores'} registrados aún`}
+              </Text>
             </View>
-            <Text style={estilos.vacioTitulo}>
-              {filtroActivo === 'todos' ? 'Sin personas aún' : filtroActivo === 'cliente' ? 'Sin clientes' : 'Sin proveedores'}
-            </Text>
-            <Text style={estilos.vacioTexto}>
-              {filtroActivo === 'todos'
-                ? 'Tocá + para agregar tu primer cliente o proveedor'
-                : `No tenés ${filtroActivo === 'cliente' ? 'clientes' : 'proveedores'} registrados aún`}
-            </Text>
-          </View>
-        }
-      />
-      <FAB onPress={() => navigation.navigate('CrearPersona')} />
+          }
+        />
+        <FAB onPress={() => navigation.navigate('CrearPersona')} />
+      </View>
     </SafeAreaView>
   );
 };

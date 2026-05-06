@@ -79,6 +79,14 @@ const Login: React.FC<Props> = ({ navigation }) => {
               icono="lock-closed-outline"
             />
 
+            <TouchableOpacity
+              onPress={() => navigation.navigate('SolicitarResetContrasena')}
+              activeOpacity={0.8}
+              style={estilos.olvidar}
+            >
+              <Text style={estilos.olvidarTexto}>¿Olvidaste tu contraseña?</Text>
+            </TouchableOpacity>
+
             <BotonPrimario
               titulo="Iniciar sesión"
               onPress={handleLogin}
@@ -118,6 +126,8 @@ const estilos = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
   },
+  olvidar: { alignSelf: 'flex-end', marginTop: ESPACIADO.sm },
+  olvidarTexto: { fontSize: FUENTE.tamanoPequeno, color: COLORES.primario, fontWeight: FUENTE.pesoSemibold },
   pie: { flexDirection: 'row', justifyContent: 'center', marginTop: ESPACIADO.xl },
   pieTexto: { color: COLORES.textoSecundario, fontSize: FUENTE.tamanoPequeno },
   pieEnlace: { color: COLORES.primario, fontSize: FUENTE.tamanoPequeno, fontWeight: FUENTE.pesoBold },

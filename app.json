@@ -4,6 +4,7 @@
     "slug": "gestion-app",
     "version": "1.0.0",
     "orientation": "portrait",
+    "scheme": "tikbal",
     "userInterfaceStyle": "light",
     "icon": "./assets/icon.png",
     "splash": {

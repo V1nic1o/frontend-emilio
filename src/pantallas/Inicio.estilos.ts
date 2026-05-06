@@ -3,7 +3,8 @@ import { COLORES } from '../estilos/colores';
 import { FUENTE, ESPACIADO, RADIO } from '../estilos/tema';
 
 export const estilos = StyleSheet.create({
-  contenedor: { flex: 1, backgroundColor: COLORES.fondo },
+  /** El color de fondo lo define `estilosFondoAtmosfera.safeArea` en la pantalla. */
+  contenedor: { flex: 1 },
   scroll: { padding: ESPACIADO.md, paddingBottom: ESPACIADO.xxl },
 
   header: {

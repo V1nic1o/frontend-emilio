@@ -210,6 +210,24 @@ const PantallaPerfil: React.FC = () => {
           </View>
         )}
 
+        <TouchableOpacity
+          style={[
+            estilos.btnPrim,
+            {
+              marginHorizontal: ESPACIADO.md,
+              marginTop: ESPACIADO.md,
+              backgroundColor: tarjeta,
+              borderColor: esPersonal ? PERSONAL.borde : COLORES.borde,
+            },
+          ]}
+          onPress={() => navigation.navigate('CambiarContrasena')}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="key-outline" size={20} color={accent} />
+          <Text style={[estilos.btnPrimTxt, { color: texto }]}>Cambiar contraseña</Text>
+          <Ionicons name="chevron-forward" size={18} color={COLORES.textoDeshabilitado} />
+        </TouchableOpacity>
+
         <TouchableOpacity style={estilos.btnSalir} onPress={confirmarCerrarSesion} activeOpacity={0.85}>
           <Ionicons name="log-out-outline" size={20} color={COLORES.peligro} />
           <Text style={estilos.btnSalirTxt}>Cerrar sesión</Text>

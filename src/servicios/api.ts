@@ -32,7 +32,11 @@ function mensajeDesdeErrorAxios(error: AxiosError): string {
     return m || 'El recurso no existe o ya no está disponible.';
   }
   if (status === 408 || status === 504) return 'El servidor tardó demasiado en responder. Intentá de nuevo.';
-  if (status != null && status >= 500) return 'El servidor tuvo un problema. Intentá en unos minutos.';
+  if (status != null && status >= 500) {
+    const m = extraerMensajeCuerpo(data);
+    if (m) return m;
+    return 'El servidor tuvo un problema. Intentá en unos minutos.';
+  }
 
   const delCuerpo = extraerMensajeCuerpo(data);
   if (delCuerpo) return delCuerpo;
@@ -77,7 +81,10 @@ api.interceptors.response.use(
 
     const ruta = error.config?.url ?? '';
     const esAuthPublico =
-      ruta.includes('auth/login') || ruta.includes('auth/registrar');
+      ruta.includes('auth/login') ||
+      ruta.includes('auth/registrar') ||
+      ruta.includes('auth/solicitar-reset') ||
+      ruta.includes('auth/restablecer-contrasena');
     const status = error.response?.status;
 
     if (status === 401 && !esAuthPublico) {

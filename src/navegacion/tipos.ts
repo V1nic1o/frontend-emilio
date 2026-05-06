@@ -5,6 +5,8 @@ import { NavigatorScreenParams } from '@react-navigation/native';
 export type AuthStackParamList = {
   Login: undefined;
   Registro: undefined;
+  SolicitarResetContrasena: undefined;
+  RestablecerContrasena: { token?: string };
 };
 
 // ─── Stacks de wallet (pantallas pre-app) ────────────────────────────────────
@@ -32,6 +34,8 @@ export type InicioStackParamList = {
   DetalleGananciaMes: undefined;
   /** Selector de periodo + tendencia (workspace empresa actual). */
   ResumenPeriodo: undefined;
+  /** Cambiar contraseña estando logueado (empresa y personal). */
+  CambiarContrasena: undefined;
 };
 
 export type PersonasStackParamList = {
@@ -85,6 +89,7 @@ export type InicioPersonalStackParamList = {
   Perfil: undefined;
   /** Resumen por periodo (workspace personal actual). */
   ResumenPeriodo: undefined;
+  CambiarContrasena: undefined;
 };
 
 export type IngresosPersonalStackParamList = {

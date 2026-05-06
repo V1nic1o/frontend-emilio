@@ -30,6 +30,8 @@ import {
 import { TabParamList } from '../navegacion/tipos';
 import EstadoBadge from '../componentes/EstadoBadge';
 import EncabezadoPanelSuperior from '../componentes/EncabezadoPanelSuperior';
+import { CapaBlobsAtmosfera, estilosFondoAtmosfera } from '../componentes/FondoAtmosfera';
+import { esWalletPersonal } from '../utilidades/wallet';
 
 type NavProp = BottomTabNavigationProp<TabParamList>;
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -310,9 +312,13 @@ const Inicio: React.FC = () => {
   /** Azul puro para esta tarjeta (sin violeta del primario ni del color del workspace). */
   const colorFondoResumenPeriodo = '#2563EB';
 
+  const esPersonal = esWalletPersonal(walletSeleccionado);
+
   return (
-    <SafeAreaView style={estilos.contenedor} edges={['top']}>
+    <SafeAreaView style={[estilos.contenedor, estilosFondoAtmosfera.safeArea]} edges={['top']}>
+      <CapaBlobsAtmosfera esPersonal={esPersonal} />
       <ScrollView
+        style={estilosFondoAtmosfera.contenidoDelante}
         contentContainerStyle={estilos.scroll}
         refreshControl={
           <RefreshControl refreshing={refrescando} onRefresh={cargar} tintColor={COLORES.primario} />

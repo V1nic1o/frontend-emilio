@@ -33,7 +33,7 @@ import { FUENTE, ESPACIADO, RADIO, estilosComunes, SCROLL_FORM_PADDING_BOTTOM } 
 import { formatearMoneda, formatearFecha, parsearNumero, etiquetaPedido } from '../../utilidades/formato';
 import { generarYCompartirPDF, TipoPDF } from '../../utilidades/pdf';
 import { mostrarAlerta, confirmarYEntonces } from '../../utilidades/alertaPlataforma';
-import { ItemPedido, Producto, TipoItem, TipoPagoProveedor } from '../../tipos';
+import { EstadoPedido, ItemPedido, Producto, TipoItem, TipoPagoProveedor } from '../../tipos';
 
 type Props = NativeStackScreenProps<PedidosStackParamList, 'DetallePedido'>;
 
@@ -461,7 +461,6 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
   const totalPagadoProveedor = resumen?.totalPagadoProveedor ?? 0;
   const saldoProveedor = resumen?.saldoProveedor ?? Math.max(0, totalCostoProveedor - totalPagadoProveedor);
   const estaProveedorPagado = resumen?.estadoProveedor === 'pagado';
-  const porcentajeProveedorPagado = totalCostoProveedor > 0 ? Math.min(100, Math.round((totalPagadoProveedor / totalCostoProveedor) * 100)) : 0;
 
   const mostrarTarjetaProveedorVentaSolo = sinClienteVenta && tieneProveedor;
   /** Misma tarjeta Proveedor que en venta cliente + proveedor; también en venta sin cliente. */
@@ -474,18 +473,41 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
   const pagosProveedorSoloIngreso = pagosProvLista.filter((p) => p.tipo === 'ingreso_cliente_a_proveedor');
   const totalIngresosClientesAlProveedor = pagosProveedorSoloIngreso.reduce((a, p) => a + p.monto, 0);
 
-  const etiquetaSaldoHero =
-    sinClienteVenta && tieneProveedor
-      ? estaPagado
-        ? 'Total acordado'
-        : 'Te debe el proveedor'
-      : estaPagado
-        ? 'Total cobrado'
-        : 'Saldo pendiente';
-  const etiquetaProgresoHero =
-    sinClienteVenta && tieneProveedor
-      ? `${formatearMoneda(totalPagado)} que te repartió · ${porcentajePagado}%`
-      : `${formatearMoneda(totalPagado)} pagado · ${porcentajePagado}%`;
+  /** Solo venta + proveedor sin cliente: barra = pagos «cliente→proveedor» / total venta. */
+  const porcentajeIngresoClienteProveedor =
+    mostrarTarjetaProveedorVentaSolo && total > 0
+      ? Math.min(100, Math.round((totalIngresosClientesAlProveedor / total) * 100))
+      : 0;
+  const textoProgresoIngresoProveedor = `${formatearMoneda(totalIngresosClientesAlProveedor)} pagados al proveedor · ${porcentajeIngresoClienteProveedor}%`;
+
+  /**
+   * Venta solo proveedor: la tarjeta debe reflejar el mismo criterio que «Cliente pagó al proveedor»
+   * (total venta vs suma de ingreso_cliente_a_proveedor). Antes usaba totalCompra/saldoProveedor del costo ítems.
+   */
+  const tarjetaProvTotalReferencia = mostrarTarjetaProveedorVentaSolo ? total : totalCostoProveedor;
+  const tarjetaProvMontoPagado = mostrarTarjetaProveedorVentaSolo ? totalIngresosClientesAlProveedor : totalPagadoProveedor;
+  const tarjetaProvSaldoPendiente = mostrarTarjetaProveedorVentaSolo ? maxIngresoClienteProveedor : saldoProveedor;
+  const tarjetaProvPorcentaje =
+    tarjetaProvTotalReferencia > 0.005
+      ? Math.min(100, Math.round((tarjetaProvMontoPagado / tarjetaProvTotalReferencia) * 100))
+      : 0;
+  const estadoBadgeProveedorEnTarjeta: EstadoPedido =
+    (mostrarTarjetaProveedorVentaSolo
+      ? tarjetaProvTotalReferencia <= 0.005
+        ? 'pagado'
+        : tarjetaProvSaldoPendiente <= 0.005
+          ? 'pagado'
+          : tarjetaProvMontoPagado <= 0.005
+            ? 'pendiente'
+            : 'parcial'
+      : resumen?.estadoProveedor) ?? 'pendiente';
+
+  const etiquetaSaldoHero = mostrarTarjetaProveedorVentaSolo
+    ? 'Total venta'
+    : estaPagado
+      ? 'Total cobrado'
+      : 'Saldo pendiente';
+  const etiquetaProgresoHero = `${formatearMoneda(totalPagado)} pagado · ${porcentajePagado}%`;
 
   const { abonosProveedor, cobrosProveedor, netoEgresoProveedor, utilidadRealProveedor } = proveedorMetrics;
 
@@ -543,7 +565,7 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
             <View style={{ flex: 1, minWidth: 0, marginRight: ESPACIADO.sm }}>
               <Text style={estilos.heroLabel}>{etiquetaSaldoHero}</Text>
               <Text style={estilos.heroMonto} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
-                {estaPagado ? formatearMoneda(total) : formatearMoneda(saldo)}
+                {mostrarTarjetaProveedorVentaSolo || estaPagado ? formatearMoneda(total) : formatearMoneda(saldo)}
               </Text>
             </View>
             <View style={estilos.heroFechaBox}>
@@ -552,7 +574,17 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
             </View>
           </View>
 
-          {!estaPagado && referenciaCobroCliente > 0 && (
+          {mostrarTarjetaProveedorVentaSolo && total > 0 && (
+            <View style={estilos.progresoWrapper}>
+              <View style={estilos.progresoBar}>
+                <View
+                  style={[estilos.progresoFill, { width: `${porcentajeIngresoClienteProveedor}%` as any }]}
+                />
+              </View>
+              <Text style={estilos.progresoTexto}>{textoProgresoIngresoProveedor}</Text>
+            </View>
+          )}
+          {!mostrarTarjetaProveedorVentaSolo && !estaPagado && referenciaCobroCliente > 0 && (
             <View style={estilos.progresoWrapper}>
               <View style={estilos.progresoBar}>
                 <View style={[estilos.progresoFill, { width: `${porcentajePagado}%` as any }]} />
@@ -787,7 +819,7 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
                   <Ionicons name="business-outline" size={16} color={COLORES.proveedor} />
                   <Text style={[estilos.cardTitulo, { color: COLORES.proveedor }]}>Proveedor</Text>
                 </View>
-                <EstadoBadge estado={resumen?.estadoProveedor ?? 'pendiente'} />
+                <EstadoBadge estado={estadoBadgeProveedorEnTarjeta} />
               </View>
 
               <View style={estilosLocales.proveedorNombreBox}>
@@ -799,31 +831,43 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
                 <View style={{ flex: 1 }}>
                   <Text style={estilosLocales.proveedorNombre}>{pedido.proveedor?.nombre ?? '—'}</Text>
                   <Text style={estilosLocales.proveedorSub}>
-                    {estaProveedorPagado ? 'Pago completado' : `Saldo pendiente: ${formatearMoneda(saldoProveedor)}`}
+                    {mostrarTarjetaProveedorVentaSolo
+                      ? tarjetaProvSaldoPendiente <= 0.005 && tarjetaProvTotalReferencia > 0.005
+                        ? 'Cliente→proveedor: monto completo'
+                        : `Pendiente (cliente→proveedor): ${formatearMoneda(tarjetaProvSaldoPendiente)}`
+                      : estaProveedorPagado
+                        ? 'Pago completado'
+                        : `Saldo pendiente: ${formatearMoneda(saldoProveedor)}`}
                   </Text>
                 </View>
               </View>
 
-              {!estaProveedorPagado && totalCostoProveedor > 0 && (
+              {(mostrarTarjetaProveedorVentaSolo
+                ? tarjetaProvTotalReferencia > 0.005 && tarjetaProvSaldoPendiente > 0.005
+                : !estaProveedorPagado && totalCostoProveedor > 0) && (
                 <View style={estilosLocales.progresoProveedorWrapper}>
                   <View style={estilos.progresoBar}>
-                    <View style={[estilos.progresoFill, estilosLocales.progresoProveedorFill, { width: `${porcentajeProveedorPagado}%` as any }]} />
+                    <View style={[estilos.progresoFill, estilosLocales.progresoProveedorFill, { width: `${tarjetaProvPorcentaje}%` as any }]} />
                   </View>
                   <Text style={estilosLocales.progresoProveedorTexto}>
-                    {formatearMoneda(totalPagadoProveedor)} pagado · {porcentajeProveedorPagado}%
+                    {formatearMoneda(tarjetaProvMontoPagado)} pagado · {tarjetaProvPorcentaje}%
                   </Text>
                 </View>
               )}
 
               <View style={estilosLocales.totalesProveedor}>
                 <View style={estilosLocales.totalProveedorItem}>
-                  <Text style={estilosLocales.totalProveedorLabel}>Costo total</Text>
-                  <Text style={estilosLocales.totalProveedorValor}>{formatearMoneda(totalCostoProveedor)}</Text>
+                  <Text style={estilosLocales.totalProveedorLabel}>
+                    {mostrarTarjetaProveedorVentaSolo ? 'Total venta' : 'Costo total'}
+                  </Text>
+                  <Text style={estilosLocales.totalProveedorValor}>{formatearMoneda(tarjetaProvTotalReferencia)}</Text>
                 </View>
                 <View style={estilosLocales.totalProveedorItem}>
-                  <Text style={estilosLocales.totalProveedorLabel}>Pagado</Text>
+                  <Text style={estilosLocales.totalProveedorLabel}>
+                    {mostrarTarjetaProveedorVentaSolo ? 'Cliente→proveedor' : 'Pagado'}
+                  </Text>
                   <Text style={[estilosLocales.totalProveedorValor, { color: COLORES.exito }]}>
-                    {formatearMoneda(totalPagadoProveedor)}
+                    {formatearMoneda(tarjetaProvMontoPagado)}
                   </Text>
                 </View>
                 <View style={estilosLocales.totalProveedorItem}>
@@ -831,10 +875,19 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
                   <Text
                     style={[
                       estilosLocales.totalProveedorValor,
-                      { color: estaProveedorPagado ? COLORES.exito : COLORES.proveedor },
+                      {
+                        color:
+                          mostrarTarjetaProveedorVentaSolo
+                            ? tarjetaProvSaldoPendiente <= 0.005
+                              ? COLORES.exito
+                              : COLORES.proveedor
+                            : estaProveedorPagado
+                              ? COLORES.exito
+                              : COLORES.proveedor,
+                      },
                     ]}
                   >
-                    {formatearMoneda(saldoProveedor)}
+                    {formatearMoneda(tarjetaProvSaldoPendiente)}
                   </Text>
                 </View>
               </View>
@@ -1043,7 +1096,7 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
           <TouchableOpacity style={estilos.botonPagarHero} onPress={() => setModalPago(true)} activeOpacity={0.85}>
             <Ionicons name="cash-outline" size={20} color={COLORES.blanco} />
             <Text style={estilos.botonPagarHeroTexto}>
-              {sinClienteVenta && tieneProveedor ? 'Registrar reparto · ' : 'Registrar pago · '}
+              {sinClienteVenta && tieneProveedor ? 'Registrar pago · ' : 'Registrar pago · '}
               {formatearMoneda(saldo)}
             </Text>
           </TouchableOpacity>

@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, ActivityIndicator, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, LinkingOptions } from '@react-navigation/native';
+import * as Linking from 'expo-linking';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -29,6 +30,8 @@ import { useAuth } from '../contexto/AuthContext';
 // Auth
 import Login from '../pantallas/Auth/Login';
 import Registro from '../pantallas/Auth/Registro';
+import SolicitarResetContrasena from '../pantallas/Auth/SolicitarResetContrasena';
+import RestablecerContrasena from '../pantallas/Auth/RestablecerContrasena';
 
 // Wallets
 import SeleccionarWallet from '../pantallas/Wallets/SeleccionarWallet';
@@ -57,6 +60,7 @@ import FormProducto from '../pantallas/Productos/FormProducto';
 import AgregarSeleccionCatalogo from '../pantallas/Productos/AgregarSeleccionCatalogo';
 import MiEmpresa from '../pantallas/Empresa/MiEmpresa';
 import PantallaPerfil from '../pantallas/Cuenta/PantallaPerfil';
+import CambiarContrasena from '../pantallas/Cuenta/CambiarContrasena';
 import InicioPersonal from '../pantallas/Personal/InicioPersonal';
 import ListaIngresosPersonales from '../pantallas/Personal/ingresos/ListaIngresosPersonales';
 import CrearIngresoPersonal from '../pantallas/Personal/ingresos/CrearIngresoPersonal';
@@ -108,13 +112,6 @@ const opcionesHeaderPersonal = {
 };
 
 // Botón "← Volver" que regresa desde Mi empresa al stack anterior
-const BotonVolver = ({ onPress }: { onPress: () => void }) => (
-  <TouchableOpacity onPress={onPress} activeOpacity={0.7} style={estilosNav.volverBtn}>
-    <Ionicons name="chevron-back" size={18} color={COLORES.primario} />
-    <Text style={estilosNav.volverTexto}>Menú</Text>
-  </TouchableOpacity>
-);
-
 const estilosNav = StyleSheet.create({
   volverBtn: {
     flexDirection: 'row',
@@ -129,11 +126,36 @@ const estilosNav = StyleSheet.create({
   },
 });
 
+const BotonVolver = ({ onPress }: { onPress: () => void }) => (
+  <TouchableOpacity onPress={onPress} activeOpacity={0.7} style={estilosNav.volverBtn}>
+    <Ionicons name="chevron-back" size={18} color={COLORES.primario} />
+    <Text style={estilosNav.volverTexto}>Menú</Text>
+  </TouchableOpacity>
+);
+
+const prefijoSitioWeb = process.env.EXPO_PUBLIC_SITE_URL?.trim().replace(/\/$/, '');
+
+function enlacesAutenticacion(): LinkingOptions<AuthStackParamList> {
+  return {
+    prefixes: [Linking.createURL('/'), ...(prefijoSitioWeb ? [prefijoSitioWeb] : [])],
+    config: {
+      screens: {
+        Login: '',
+        Registro: 'registro',
+        SolicitarResetContrasena: 'olvido-contrasena',
+        RestablecerContrasena: 'restablecer-contrasena/:token',
+      },
+    },
+  };
+}
+
 function AuthNavigator() {
   return (
     <AuthStack.Navigator screenOptions={{ headerShown: false }}>
       <AuthStack.Screen name="Login" component={Login} />
       <AuthStack.Screen name="Registro" component={Registro} />
+      <AuthStack.Screen name="SolicitarResetContrasena" component={SolicitarResetContrasena} />
+      <AuthStack.Screen name="RestablecerContrasena" component={RestablecerContrasena} />
     </AuthStack.Navigator>
   );
 }
@@ -170,6 +192,7 @@ function InicioNavigator() {
         options={{ title: 'Detalle del mes' }}
       />
       <InicioStack.Screen name="ResumenPeriodo" component={ResumenPeriodoPantalla} options={{ title: 'Resumen por periodo' }} />
+      <InicioStack.Screen name="CambiarContrasena" component={CambiarContrasena} options={{ title: 'Cambiar contraseña' }} />
     </InicioStack.Navigator>
   );
 }
@@ -227,6 +250,11 @@ function InicioPersonalNavigator() {
         name="ResumenPeriodo"
         component={ResumenPeriodoPantalla}
         options={{ title: 'Resumen por periodo' }}
+      />
+      <InicioPersonalStack.Screen
+        name="CambiarContrasena"
+        component={CambiarContrasena}
+        options={{ title: 'Cambiar contraseña' }}
       />
     </InicioPersonalStack.Navigator>
   );
@@ -519,6 +547,7 @@ function AppTabsConStacks() {
 export default function Navegacion() {
   const { usuario, cargando: cargandoAuth } = useAuth();
   const { cargando: cargandoWallet } = useWallet();
+  const opcionesEnlace = useMemo(() => enlacesAutenticacion(), []);
 
   if (cargandoAuth || cargandoWallet) {
     return (
@@ -529,7 +558,7 @@ export default function Navegacion() {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer linking={opcionesEnlace}>
       {!usuario ? <AuthNavigator /> : <AppConStacks />}
     </NavigationContainer>
   );
