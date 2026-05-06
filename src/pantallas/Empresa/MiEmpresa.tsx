@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { perfilServicio, PerfilEmpresa } from '../../servicios/perfil.servicio';
+import { useWallet } from '../../contexto/WalletContext';
 import CampoTexto from '../../componentes/CampoTexto';
 import BotonPrimario from '../../componentes/BotonPrimario';
 import { COLORES } from '../../estilos/colores';
@@ -21,22 +22,32 @@ import { FUENTE, ESPACIADO, RADIO, SCROLL_FORM_PADDING_BOTTOM } from '../../esti
 import { mostrarAlerta } from '../../utilidades/alertaPlataforma';
 
 const MiEmpresa: React.FC = () => {
+  const { walletSeleccionado } = useWallet();
   const [perfil, setPerfil] = useState<Partial<PerfilEmpresa>>({});
   const [cargandoPerfil, setCargandoPerfil] = useState(true);
   const [guardando, setGuardando] = useState(false);
 
   const cargar = useCallback(async () => {
+    const wid = walletSeleccionado?.id;
+    if (wid == null) {
+      setPerfil({});
+      setCargandoPerfil(false);
+      return;
+    }
+    setCargandoPerfil(true);
     try {
-      const data = await perfilServicio.obtener();
+      const data = await perfilServicio.obtener(wid);
       setPerfil(data);
     } catch {
       // sin perfil aún
     } finally {
       setCargandoPerfil(false);
     }
-  }, []);
+  }, [walletSeleccionado?.id]);
 
-  useEffect(() => { cargar(); }, [cargar]);
+  useEffect(() => {
+    void cargar();
+  }, [cargar]);
 
   const seleccionarLogo = async () => {
     const permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -69,7 +80,9 @@ const MiEmpresa: React.FC = () => {
   const guardar = async () => {
     setGuardando(true);
     try {
-      const actualizado = await perfilServicio.actualizar({
+      const wid = walletSeleccionado?.id;
+      if (wid == null) return;
+      const actualizado = await perfilServicio.actualizar(wid, {
         nombreEmpresa: perfil.nombreEmpresa ?? undefined,
         logoBase64: perfil.logoBase64 ?? undefined,
         direccion: perfil.direccion ?? undefined,
@@ -132,7 +145,9 @@ const MiEmpresa: React.FC = () => {
               onPress={async () => {
                 setGuardando(true);
                 try {
-                  const actualizado = await perfilServicio.actualizar({ eliminarLogo: true });
+                  const wid = walletSeleccionado?.id;
+                  if (wid == null) return;
+                  const actualizado = await perfilServicio.actualizar(wid, { eliminarLogo: true });
                   setPerfil(actualizado);
                   mostrarAlerta('Listo', 'Se quitó el logo de tu empresa');
                 } catch (e: unknown) {

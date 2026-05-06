@@ -1,7 +1,7 @@
 import api from './api';
 
 export interface PerfilEmpresa {
-  usuarioId: number;
+  walletId: number;
   nombreEmpresa: string | null;
   logoBase64: string | null;
   /** URL HTTPS del logo (p. ej. Cloudinary); preferida en PDFs y en la app. */
@@ -14,18 +14,18 @@ export interface PerfilEmpresa {
   nit: string | null;
 }
 
-export type ActualizarPerfilPayload = Partial<Omit<PerfilEmpresa, 'usuarioId' | 'logoCloudinaryPublicId'>> & {
+export type ActualizarPerfilPayload = Partial<Omit<PerfilEmpresa, 'walletId' | 'logoCloudinaryPublicId'>> & {
   eliminarLogo?: boolean;
 };
 
 export const perfilServicio = {
-  obtener: async (): Promise<PerfilEmpresa> => {
-    const { data } = await api.get<PerfilEmpresa>('/perfil');
+  obtener: async (walletId: number): Promise<PerfilEmpresa> => {
+    const { data } = await api.get<PerfilEmpresa>('/perfil', { params: { walletId } });
     return data;
   },
 
-  actualizar: async (dto: ActualizarPerfilPayload): Promise<PerfilEmpresa> => {
-    const { data } = await api.patch<PerfilEmpresa>('/perfil', dto);
+  actualizar: async (walletId: number, dto: ActualizarPerfilPayload): Promise<PerfilEmpresa> => {
+    const { data } = await api.patch<PerfilEmpresa>('/perfil', dto, { params: { walletId } });
     return data;
   },
 };

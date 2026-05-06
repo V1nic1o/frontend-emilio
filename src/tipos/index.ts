@@ -425,3 +425,20 @@ export interface Estadisticas {
   cantidadCompras: number;
   porMes: MesEstadistica[];
 }
+
+/** Totales del periodo elegido (GET /estadisticas/rango). */
+export interface TotalesRangoEstadisticas {
+  ingresosCobrados: number;
+  gastosOperativos: number;
+  gananciaNeta: number;
+  impuestosIva: number;
+  mesesEnPeriodo: number;
+  promedioMensualGananciaNeta: number;
+  /** % ganancia neta sobre ingresos cobrados en el rango; null si no aplica. */
+  margenSobreIngresosPct: number | null;
+}
+
+export interface EstadisticasRango {
+  porMes: MesEstadistica[];
+  totales: TotalesRangoEstadisticas;
+}

@@ -41,6 +41,7 @@ import PedidosPorPagarPantalla from '../pantallas/Inicio/PedidosPorPagarPantalla
 import PendientesSinSaldarPantalla from '../pantallas/Inicio/PendientesSinSaldarPantalla';
 import PorCobrarDetallePantalla from '../pantallas/Inicio/PorCobrarDetallePantalla';
 import DetalleGananciaMesPantalla from '../pantallas/Inicio/DetalleGananciaMesPantalla';
+import ResumenPeriodoPantalla from '../pantallas/Inicio/ResumenPeriodoPantalla';
 import ListaPersonas from '../pantallas/Personas/ListaPersonas';
 import CrearPersona from '../pantallas/Personas/CrearPersona';
 import DetallePersona from '../pantallas/Personas/DetallePersona';
@@ -55,7 +56,7 @@ import CatalogoProductos from '../pantallas/Productos/CatalogoProductos';
 import FormProducto from '../pantallas/Productos/FormProducto';
 import AgregarSeleccionCatalogo from '../pantallas/Productos/AgregarSeleccionCatalogo';
 import MiEmpresa from '../pantallas/Empresa/MiEmpresa';
-import PantallaMas from '../pantallas/Mas/PantallaMas';
+import PantallaPerfil from '../pantallas/Cuenta/PantallaPerfil';
 import InicioPersonal from '../pantallas/Personal/InicioPersonal';
 import ListaIngresosPersonales from '../pantallas/Personal/ingresos/ListaIngresosPersonales';
 import CrearIngresoPersonal from '../pantallas/Personal/ingresos/CrearIngresoPersonal';
@@ -66,8 +67,6 @@ import EditarDeudaPersonal from '../pantallas/Personal/deudas/EditarDeudaPersona
 import ListaAhorrosPersonales from '../pantallas/Personal/ahorros/ListaAhorrosPersonales';
 import CrearAhorroPersonal from '../pantallas/Personal/ahorros/CrearAhorroPersonal';
 import EditarAhorroPersonal from '../pantallas/Personal/ahorros/EditarAhorroPersonal';
-import MasPersonal from '../pantallas/Personal/MasPersonal';
-
 import { COLORES } from '../estilos/colores';
 import { PERSONAL } from '../estilos/personalTema';
 import { FUENTE } from '../estilos/tema';
@@ -108,7 +107,7 @@ const opcionesHeaderPersonal = {
   headerRight: () => <IndicadorWorkspaceHeader variantePersonal />,
 };
 
-// Botón "← Volver" que regresa al stack raíz (MainTabs → PantallaMas)
+// Botón "← Volver" que regresa desde Mi empresa al stack anterior
 const BotonVolver = ({ onPress }: { onPress: () => void }) => (
   <TouchableOpacity onPress={onPress} activeOpacity={0.7} style={estilosNav.volverBtn}>
     <Ionicons name="chevron-back" size={18} color={COLORES.primario} />
@@ -152,6 +151,7 @@ function InicioNavigator() {
   return (
     <InicioStack.Navigator screenOptions={opcionesHeader}>
       <InicioStack.Screen name="Inicio" component={Inicio} options={{ headerShown: false }} />
+      <InicioStack.Screen name="Perfil" component={PantallaPerfil} options={{ title: 'Cuenta' }} />
       <InicioStack.Screen
         name="AsesoriasPendientesCobro"
         component={AsesoriasPendientesCobroPantalla}
@@ -169,6 +169,7 @@ function InicioNavigator() {
         component={DetalleGananciaMesPantalla}
         options={{ title: 'Detalle del mes' }}
       />
+      <InicioStack.Screen name="ResumenPeriodo" component={ResumenPeriodoPantalla} options={{ title: 'Resumen por periodo' }} />
     </InicioStack.Navigator>
   );
 }
@@ -199,14 +200,7 @@ function PedidosNavigator() {
 function GastosNavigator() {
   return (
     <GastosStack.Navigator screenOptions={opcionesHeader}>
-      <GastosStack.Screen
-        name="ListaGastos"
-        component={ListaGastos}
-        options={({ navigation }) => ({
-          title: 'Gastos',
-          headerLeft: () => <BotonVolver onPress={() => navigation.getParent()?.goBack()} />,
-        })}
-      />
+      <GastosStack.Screen name="ListaGastos" component={ListaGastos} options={{ title: 'Gastos' }} />
       <GastosStack.Screen name="CrearGasto" component={CrearGasto} options={{ title: 'Nuevo Gasto', presentation: 'modal' }} />
       <GastosStack.Screen name="EditarGasto" component={EditarGasto} options={{ title: 'Editar gasto', presentation: 'modal' }} />
     </GastosStack.Navigator>
@@ -228,6 +222,12 @@ function InicioPersonalNavigator() {
   return (
     <InicioPersonalStack.Navigator screenOptions={opcionesHeaderPersonal}>
       <InicioPersonalStack.Screen name="InicioPersonal" component={InicioPersonal} options={{ headerShown: false }} />
+      <InicioPersonalStack.Screen name="Perfil" component={PantallaPerfil} options={{ title: 'Cuenta' }} />
+      <InicioPersonalStack.Screen
+        name="ResumenPeriodo"
+        component={ResumenPeriodoPantalla}
+        options={{ title: 'Resumen por periodo' }}
+      />
     </InicioPersonalStack.Navigator>
   );
 }
@@ -298,11 +298,11 @@ function EmpresaNavigator() {
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
 const TAB_ICONS: Record<string, { activo: IoniconName; inactivo: IoniconName }> = {
-  InicioTab:   { activo: 'home',         inactivo: 'home-outline' },
-  PersonasTab: { activo: 'people',       inactivo: 'people-outline' },
-  PedidosTab:  { activo: 'cube',         inactivo: 'cube-outline' },
-  CatalogoTab: { activo: 'layers',      inactivo: 'layers-outline' },
-  MasTab:      { activo: 'grid',         inactivo: 'grid-outline' },
+  InicioTab: { activo: 'home', inactivo: 'home-outline' },
+  PersonasTab: { activo: 'people', inactivo: 'people-outline' },
+  PedidosTab: { activo: 'cube', inactivo: 'cube-outline' },
+  CatalogoTab: { activo: 'layers', inactivo: 'layers-outline' },
+  GastosTab: { activo: 'wallet', inactivo: 'wallet-outline' },
 };
 
 function AppTabs() {
@@ -315,6 +315,9 @@ function AppTabs() {
         headerShown: false,
         tabBarIcon: ({ focused, color, size }) => {
           const icons = TAB_ICONS[route.name];
+          if (!icons) {
+            return <Ionicons name="ellipse-outline" size={size} color={color} />;
+          }
           const nombre = focused ? icons.activo : icons.inactivo;
           return <Ionicons name={nombre} size={size} color={color} />;
         },
@@ -375,7 +378,16 @@ function AppTabs() {
           },
         })}
       />
-      <Tab.Screen name="MasTab"      component={PantallaMas}       options={{ title: 'Más' }} />
+      <Tab.Screen
+        name="GastosTab"
+        component={GastosNavigator}
+        options={{ title: 'Gastos' }}
+        listeners={({ navigation }) => ({
+          tabPress: () => {
+            navigation.navigate('GastosTab', { screen: 'ListaGastos', params: {} });
+          },
+        })}
+      />
     </Tab.Navigator>
   );
 }
@@ -386,7 +398,6 @@ const TAB_ICONS_PERSONAL: Record<string, { activo: IoniconName; inactivo: Ionico
   GastosPersonalTab: { activo: 'wallet', inactivo: 'wallet-outline' },
   DeudasPersonalTab: { activo: 'document-text', inactivo: 'document-text-outline' },
   AhorrosPersonalTab: { activo: 'cash', inactivo: 'cash-outline' },
-  MasPersonalTab: { activo: 'menu', inactivo: 'menu-outline' },
 };
 
 function AppTabsPersonal() {
@@ -471,7 +482,6 @@ function AppTabsPersonal() {
           },
         })}
       />
-      <TabPersonal.Screen name="MasPersonalTab" component={MasPersonal} options={{ title: 'Más' }} />
     </TabPersonal.Navigator>
   );
 }
@@ -501,7 +511,6 @@ function AppTabsConStacks() {
   return (
     <RootStack.Navigator screenOptions={{ headerShown: false }}>
       <RootStack.Screen name="MainTabs" component={AppTabs} />
-      <RootStack.Screen name="GastosStack" component={GastosNavigator} options={{ presentation: 'card' }} />
       <RootStack.Screen name="EmpresaStack" component={EmpresaNavigator} options={{ presentation: 'card' }} />
     </RootStack.Navigator>
   );

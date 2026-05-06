@@ -101,7 +101,13 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
   useFocusEffect(
     useCallback(() => {
       cargar();
-      perfilServicio.obtener().then(setPerfilEmpresa).catch(() => {});
+      const w = walletSeleccionado;
+      const esEmpresa = w != null && (w.tipo === 'empresa' || w.tipo == null);
+      if (esEmpresa && w.id != null) {
+        perfilServicio.obtener(w.id).then(setPerfilEmpresa).catch(() => {});
+      } else {
+        setPerfilEmpresa(null);
+      }
       if (walletSeleccionado) {
         productosServicio.listarPorWallet(walletSeleccionado.id).then(setProductos).catch(() => {});
       }
@@ -1025,8 +1031,8 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
           </View>
         )}
 
-        <TouchableOpacity style={estilos.botonEliminar} onPress={handleEliminar} activeOpacity={0.8}>
-          <Ionicons name="trash-outline" size={15} color={COLORES.peligro} />
+        <TouchableOpacity style={estilos.botonEliminar} onPress={handleEliminar} activeOpacity={0.85}>
+          <Ionicons name="trash-outline" size={18} color={COLORES.peligro} />
           <Text style={estilos.botonEliminarTexto}>Eliminar pedido</Text>
         </TouchableOpacity>
       </ScrollView>

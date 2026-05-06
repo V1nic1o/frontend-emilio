@@ -72,8 +72,14 @@ const AsesoriaMensualPantalla: React.FC<Props> = ({ navigation, route }) => {
   const inicialCliente = nombreCliente.charAt(0).toUpperCase() || 'C';
 
   useEffect(() => {
-    perfilServicio.obtener().then(setPerfilEmpresa).catch(() => setPerfilEmpresa(null));
-  }, []);
+    const w = walletSeleccionado;
+    const esEmpresa = w != null && (w.tipo === 'empresa' || w.tipo == null);
+    if (!esEmpresa || w?.id == null) {
+      setPerfilEmpresa(null);
+      return;
+    }
+    perfilServicio.obtener(w.id).then(setPerfilEmpresa).catch(() => setPerfilEmpresa(null));
+  }, [walletSeleccionado]);
 
   useLayoutEffect(() => {
     const titulo = `Asesoría · ${nombreCliente}`;

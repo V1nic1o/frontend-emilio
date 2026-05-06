@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import EncabezadoPanelSuperior from '../../componentes/EncabezadoPanelSuperior';
 import { useWallet } from '../../contexto/WalletContext';
 import { finanzasPersonalesServicio } from '../../servicios/finanzasPersonales.servicio';
 import { ResumenFinanzasPersonales } from '../../tipos';
@@ -158,6 +159,16 @@ const InicioPersonal: React.FC = () => {
     [navigation],
   );
 
+  const irAPerfil = useCallback(() => {
+    navigation.navigate('InicioPersonalTab', { screen: 'Perfil' });
+  }, [navigation]);
+
+  const irAResumenPeriodo = useCallback(() => {
+    navigation.navigate('InicioPersonalTab', { screen: 'ResumenPeriodo' });
+  }, [navigation]);
+
+  const onNotificacionesPlaceholder = useCallback(() => {}, []);
+
   const herramientas: {
     tab: TabPersonal;
     pantallaLista: string;
@@ -214,18 +225,26 @@ const InicioPersonal: React.FC = () => {
         }
         showsVerticalScrollIndicator={false}
       >
-        <View style={estilos.topBar}>
-          <View style={{ flex: 1 }}>
-            <Text style={estilos.marca}>Tu espacio personal</Text>
-            <Text style={estilos.walletNombre} numberOfLines={1}>
-              {walletSeleccionado?.nombre ?? 'Wallet'}
-            </Text>
+        <EncabezadoPanelSuperior
+          lineaSuperior="Tu espacio personal"
+          titulo={walletSeleccionado?.nombre ?? 'Wallet'}
+          variantePersonal
+          onPressPerfil={irAPerfil}
+          onPressNotificaciones={onNotificacionesPlaceholder}
+          onPressCambiarWorkspace={volverAElegirWorkspace}
+          colorWorkspace={walletSeleccionado?.color}
+        />
+
+        <TouchableOpacity style={estilos.accesoResumen} onPress={irAResumenPeriodo} activeOpacity={0.88}>
+          <View style={estilos.accesoResumenIcono}>
+            <Ionicons name="bar-chart-outline" size={22} color={PERSONAL.accentOscuro} />
           </View>
-          <TouchableOpacity style={estilos.btnCambiar} onPress={volverAElegirWorkspace} activeOpacity={0.85}>
-            <Ionicons name="swap-horizontal" size={18} color={PERSONAL.accentOscuro} />
-            <Text style={estilos.btnCambiarTxt}>Workspace</Text>
-          </TouchableOpacity>
-        </View>
+          <View style={{ flex: 1 }}>
+            <Text style={estilos.accesoResumenTitulo}>Resumen por periodo</Text>
+            <Text style={estilos.accesoResumenSub}>Mes, año y tendencia del workspace</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={COLORES.textoDeshabilitado} />
+        </TouchableOpacity>
 
         <View style={estilos.hero}>
           <View style={estilos.heroBadge}>
@@ -369,32 +388,35 @@ const InicioPersonal: React.FC = () => {
 const estilos = StyleSheet.create({
   safe: { flex: 1, backgroundColor: PERSONAL.fondo },
   scroll: { padding: ESPACIADO.lg, paddingBottom: 100 },
-  topBar: {
+  accesoResumen: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: ESPACIADO.md,
-    gap: ESPACIADO.sm,
-  },
-  marca: {
-    fontSize: FUENTE.tamanoXs,
-    fontWeight: FUENTE.pesoBold,
-    color: PERSONAL.accentOscuro,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-  },
-  walletNombre: { fontSize: FUENTE.tamanoGrande, fontWeight: FUENTE.pesoBold, color: COLORES.texto, marginTop: 2 },
-  btnCambiar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: RADIO.xl,
+    gap: ESPACIADO.md,
     backgroundColor: PERSONAL.tarjeta,
+    padding: ESPACIADO.md,
+    borderRadius: RADIO.xl,
+    marginBottom: ESPACIADO.md,
     borderWidth: 1,
     borderColor: PERSONAL.borde,
   },
-  btnCambiarTxt: { fontSize: FUENTE.tamanoXs, fontWeight: FUENTE.pesoBold, color: PERSONAL.accentOscuro },
+  accesoResumenIcono: {
+    width: 44,
+    height: 44,
+    borderRadius: RADIO.md,
+    backgroundColor: PERSONAL.accentClaro,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  accesoResumenTitulo: {
+    fontSize: FUENTE.tamanoBase,
+    fontWeight: FUENTE.pesoBold,
+    color: COLORES.texto,
+  },
+  accesoResumenSub: {
+    fontSize: FUENTE.tamanoXs,
+    color: COLORES.textoSecundario,
+    marginTop: 2,
+  },
   hero: {
     backgroundColor: PERSONAL.heroOscuro,
     borderRadius: RADIO.xxl,

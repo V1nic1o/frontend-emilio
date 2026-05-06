@@ -279,6 +279,21 @@ export const estilos = StyleSheet.create({
   pendDer: { alignItems: 'flex-end', gap: 3, marginRight: 2 },
   pendSaldo: { fontSize: FUENTE.tamanoBase, fontWeight: FUENTE.pesoBold, color: COLORES.pendiente },
 
+  /** Tarjeta «Resumen por periodo»: mismo lenguaje visual que gananciaCard / «Este mes». */
+  accesoResumenPeriodoHero: {
+    fontSize: FUENTE.tamanoGrande,
+    fontWeight: FUENTE.pesoBold,
+    color: COLORES.blanco,
+    letterSpacing: -0.4,
+    marginTop: 2,
+  },
+  accesoResumenPeriodoSubBlanco: {
+    fontSize: FUENTE.tamanoPequeno,
+    color: 'rgba(255,255,255,0.82)',
+    marginTop: ESPACIADO.sm,
+    lineHeight: 18,
+  },
+
   // ─── Crédito desarrollador ────────────────────────────────────────────────
   creditoBox: {
     alignItems: 'center',

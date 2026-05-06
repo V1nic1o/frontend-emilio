@@ -18,6 +18,8 @@ export type WalletStackParamList = {
 
 export type InicioStackParamList = {
   Inicio: undefined;
+  /** Cuenta: usuario, workspace, empresa y cerrar sesión (antes en «Más»). */
+  Perfil: undefined;
   /** Listado de periodos de asesoría pendientes; se abre desde Inicio cuando hay más de uno. */
   AsesoriasPendientesCobro: undefined;
   /** Compras y pagos a proveedor en ventas con saldo pendiente. */
@@ -28,6 +30,8 @@ export type InicioStackParamList = {
   PorCobrarDetalle: undefined;
   /** Desglose del mes en curso (misma info que la tarjeta «Este mes» en Inicio). */
   DetalleGananciaMes: undefined;
+  /** Selector de periodo + tendencia (workspace empresa actual). */
+  ResumenPeriodo: undefined;
 };
 
 export type PersonasStackParamList = {
@@ -71,13 +75,16 @@ export type TabParamList = {
   PersonasTab: NavigatorScreenParams<PersonasStackParamList> | undefined;
   PedidosTab: NavigatorScreenParams<PedidosStackParamList> | undefined;
   CatalogoTab: NavigatorScreenParams<CatalogoStackParamList> | undefined;
-  MasTab: undefined;
+  GastosTab: NavigatorScreenParams<GastosStackParamList> | undefined;
 };
 
 // ─── Workspace personal (tabs alternativos) ─────────────────────────────────
 
 export type InicioPersonalStackParamList = {
   InicioPersonal: undefined;
+  Perfil: undefined;
+  /** Resumen por periodo (workspace personal actual). */
+  ResumenPeriodo: undefined;
 };
 
 export type IngresosPersonalStackParamList = {
@@ -104,5 +111,4 @@ export type TabParamListPersonal = {
   GastosPersonalTab: NavigatorScreenParams<GastosStackParamList> | undefined;
   DeudasPersonalTab: NavigatorScreenParams<DeudasPersonalStackParamList> | undefined;
   AhorrosPersonalTab: NavigatorScreenParams<AhorrosPersonalStackParamList> | undefined;
-  MasPersonalTab: undefined;
 };

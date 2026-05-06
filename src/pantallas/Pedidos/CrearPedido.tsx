@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -199,6 +199,32 @@ const CrearPedido: React.FC<Props> = ({ navigation, route }) => {
   const [impuesto, setImpuesto] = useState('');
   const [nombreReferencia, setNombreReferencia] = useState('');
   const [guardando, setGuardando] = useState(false);
+
+  /** Alineado con `calcularResumenPedido` (venta + IVA sobre subtotal de ítems). */
+  const vistaPreviaTotales = useMemo(() => {
+    let subtotalCompra = 0;
+    let subtotalVenta = 0;
+    for (const it of items) {
+      const c = parsearNumero(it.cantidad);
+      subtotalCompra += c * parsearNumero(it.precioCompra);
+      subtotalVenta += c * parsearNumero(it.precioVenta);
+    }
+    subtotalCompra = Math.round(subtotalCompra * 100) / 100;
+    subtotalVenta = Math.round(subtotalVenta * 100) / 100;
+
+    const pctRaw = mostrarImpuesto ? parsearNumero(impuesto) : 0;
+    const impuestoActivo = tipoPedido === 'venta' && mostrarImpuesto && pctRaw > 0;
+    const montoIva = impuestoActivo ? Math.round(subtotalVenta * (pctRaw / 100) * 100) / 100 : 0;
+    const totalVentaConIva = impuestoActivo ? Math.round((subtotalVenta + montoIva) * 100) / 100 : subtotalVenta;
+
+    return {
+      subtotalCompra,
+      subtotalVenta,
+      montoIva,
+      totalVenta: totalVentaConIva,
+      pctImpuesto: impuestoActivo ? pctRaw : null,
+    };
+  }, [items, mostrarImpuesto, impuesto, tipoPedido]);
 
   // Catálogo de productos
   const [productos, setProductos] = useState<Producto[]>([]);
@@ -670,16 +696,36 @@ const CrearPedido: React.FC<Props> = ({ navigation, route }) => {
             <Text style={estilos.botonAgregarItemTexto}>Agregar otro ítem</Text>
           </TouchableOpacity>
 
-          {/* Pago inicial */}
+          {/* Pago inicial: en venta solo proveedor es ingreso cliente→proveedor (no reparto/margen). */}
           <TouchableOpacity style={estilos.togglePago} onPress={() => setMostrarPago((v) => !v)} activeOpacity={0.8}>
             <View style={[estilos.checkbox, mostrarPago && estilos.checkboxActivo]}>
               {mostrarPago && <Ionicons name="checkmark" size={13} color={COLORES.blanco} />}
             </View>
-            <Text style={estilos.togglePagoTitulo}>Agregar pago inicial</Text>
+            <Text style={estilos.togglePagoTitulo}>
+              {modoCreacion === 'venta_proveedor'
+                ? 'Registrar lo que el cliente ya pagó al proveedor'
+                : 'Agregar pago inicial'}
+            </Text>
           </TouchableOpacity>
 
           {mostrarPago && (
-            <CampoTexto etiqueta="Monto pagado" placeholder="0.00" value={pagoInicial} onChangeText={setPagoInicial} keyboardType="decimal-pad" icono="cash-outline" />
+            <CampoTexto
+              etiqueta={
+                modoCreacion === 'venta_proveedor'
+                  ? 'Monto pagado por el cliente al proveedor'
+                  : 'Monto pagado'
+              }
+              placeholder="0.00"
+              value={pagoInicial}
+              onChangeText={setPagoInicial}
+              keyboardType="decimal-pad"
+              icono="cash-outline"
+              ayuda={
+                modoCreacion === 'venta_proveedor'
+                  ? 'No suma como tu reparto/margen; solo trazabilidad del cobro al proveedor.'
+                  : undefined
+              }
+            />
           )}
 
           {/* Impuesto opcional */}
@@ -701,6 +747,51 @@ const CrearPedido: React.FC<Props> = ({ navigation, route }) => {
               ayuda="Se mostrará en el PDF de cotización"
             />
           )}
+
+          <View style={estilosSeccion.tarjeta}>
+            <Text style={estilosSeccion.titulo}>Vista previa</Text>
+            {tipoPedido === 'compra' ? (
+              <>
+                <Text style={estilosSeccion.descripcion}>
+                  Suma de cantidad × precio costo (lo que usará el pedido para el saldo de compra).
+                </Text>
+                <View style={estilosPreview.filaTotal}>
+                  <Text style={estilosPreview.etiquetaStrong}>Total compra</Text>
+                  <Text style={estilosPreview.valorStrong}>{formatearMoneda(vistaPreviaTotales.subtotalCompra)}</Text>
+                </View>
+              </>
+            ) : vistaPreviaTotales.pctImpuesto != null ? (
+              <>
+                <Text style={estilosSeccion.descripcion}>
+                  Mismo criterio que al guardar: IVA sobre el subtotal de venta de los ítems.
+                </Text>
+                <View style={estilosPreview.fila}>
+                  <Text style={estilosPreview.etiqueta}>Subtotal</Text>
+                  <Text style={estilosPreview.valor}>{formatearMoneda(vistaPreviaTotales.subtotalVenta)}</Text>
+                </View>
+                <View style={estilosPreview.fila}>
+                  <Text style={estilosPreview.etiqueta}>
+                    IVA ({vistaPreviaTotales.pctImpuesto}%)
+                  </Text>
+                  <Text style={estilosPreview.valor}>{formatearMoneda(vistaPreviaTotales.montoIva)}</Text>
+                </View>
+                <View style={[estilosPreview.fila, estilosPreview.filaTotalDestacada]}>
+                  <Text style={estilosPreview.etiquetaStrong}>Total</Text>
+                  <Text style={estilosPreview.valorStrong}>{formatearMoneda(vistaPreviaTotales.totalVenta)}</Text>
+                </View>
+              </>
+            ) : (
+              <>
+                <Text style={estilosSeccion.descripcion}>
+                  Total de venta sin impuesto. Activá «Agregar impuesto» arriba para ver subtotal, IVA y total.
+                </Text>
+                <View style={estilosPreview.filaTotal}>
+                  <Text style={estilosPreview.etiquetaStrong}>Total venta</Text>
+                  <Text style={estilosPreview.valorStrong}>{formatearMoneda(vistaPreviaTotales.subtotalVenta)}</Text>
+                </View>
+              </>
+            )}
+          </View>
         </ScrollView>
 
         <View style={estilos.footer}>
@@ -941,6 +1032,49 @@ const estilosSeccion = StyleSheet.create({
     color: COLORES.textoSecundario,
     lineHeight: 20,
     marginBottom: ESPACIADO.sm,
+  },
+});
+
+const estilosPreview = StyleSheet.create({
+  fila: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: ESPACIADO.xs,
+  },
+  filaTotal: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: ESPACIADO.xs,
+    paddingTop: ESPACIADO.sm,
+    borderTopWidth: 1,
+    borderTopColor: COLORES.borde,
+  },
+  filaTotalDestacada: {
+    marginTop: ESPACIADO.sm,
+    paddingTop: ESPACIADO.sm,
+    borderTopWidth: 1,
+    borderTopColor: COLORES.borde,
+  },
+  etiqueta: {
+    fontSize: FUENTE.tamanoBase,
+    color: COLORES.textoSecundario,
+  },
+  valor: {
+    fontSize: FUENTE.tamanoBase,
+    fontWeight: FUENTE.pesoSemibold,
+    color: COLORES.texto,
+  },
+  etiquetaStrong: {
+    fontSize: FUENTE.tamanoBase,
+    fontWeight: FUENTE.pesoBold,
+    color: COLORES.texto,
+  },
+  valorStrong: {
+    fontSize: FUENTE.tamanoMedio,
+    fontWeight: FUENTE.pesoBold,
+    color: COLORES.primario,
   },
 });
 

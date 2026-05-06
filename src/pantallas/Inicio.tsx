@@ -29,6 +29,7 @@ import {
 } from '../utilidades/pagosPendientes';
 import { TabParamList } from '../navegacion/tipos';
 import EstadoBadge from '../componentes/EstadoBadge';
+import EncabezadoPanelSuperior from '../componentes/EncabezadoPanelSuperior';
 
 type NavProp = BottomTabNavigationProp<TabParamList>;
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -38,7 +39,7 @@ const MES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'ag
 
 const Inicio: React.FC = () => {
   const navigation = useNavigation<NavProp>();
-  const { walletSeleccionado, limpiar, finanzasEpoch } = useWallet();
+  const { walletSeleccionado, finanzasEpoch, volverAElegirWorkspace } = useWallet();
   const { pedidos, cargando: cargandoPedidos, cargar: cargarPedidos } = usePedidos();
   const { gastos, cargando: cargandoGastos, cargar: cargarGastos } = useGastos();
   const { estadisticas, cargando: cargandoStats, cargar: cargarStats } = useEstadisticas();
@@ -141,8 +142,20 @@ const Inicio: React.FC = () => {
     navigation.navigate('InicioTab', { screen: 'PorCobrarDetalle' });
   }, [navigation]);
 
+  const irAPerfil = useCallback(() => {
+    navigation.navigate('InicioTab', { screen: 'Perfil' });
+  }, [navigation]);
+
+  const onNotificacionesPlaceholder = useCallback(() => {
+    // Reservado: conectar a centro de notificaciones cuando exista backend.
+  }, []);
+
   const irADetalleGananciaMes = useCallback(() => {
     navigation.navigate('InicioTab', { screen: 'DetalleGananciaMes' });
+  }, [navigation]);
+
+  const irAResumenPeriodo = useCallback(() => {
+    navigation.navigate('InicioTab', { screen: 'ResumenPeriodo' });
   }, [navigation]);
 
   /** Tarjeta «Por pagar»: un solo ítem → detalle; varios → listado en Inicio. */
@@ -294,6 +307,8 @@ const Inicio: React.FC = () => {
 
   const esGananciaPositiva = gananciaNeta >= 0;
   const esGananciaMesPositiva = gananciaNetaMes >= 0;
+  /** Azul puro para esta tarjeta (sin violeta del primario ni del color del workspace). */
+  const colorFondoResumenPeriodo = '#2563EB';
 
   return (
     <SafeAreaView style={estilos.contenedor} edges={['top']}>
@@ -304,33 +319,14 @@ const Inicio: React.FC = () => {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <View style={estilos.header}>
-          <View style={{ flex: 1, minWidth: 0, marginRight: ESPACIADO.sm }}>
-            <Text style={estilos.fechaTexto}>{fechaTexto}</Text>
-            <Text style={estilos.titulo}>Panel de control</Text>
-          </View>
-          <TouchableOpacity
-            style={estilos.avatarBox}
-            onPress={limpiar}
-            activeOpacity={0.8}
-          >
-            <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: walletSeleccionado?.color ?? COLORES.primario, marginBottom: 3 }} />
-            <Ionicons name="swap-horizontal-outline" size={18} color={COLORES.primario} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Wallet badge */}
-        {walletSeleccionado && (
-          <TouchableOpacity onPress={limpiar} activeOpacity={0.8}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: ESPACIADO.sm, alignSelf: 'flex-start' }}>
-              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: walletSeleccionado.color }} />
-              <Text style={{ fontSize: FUENTE.tamanoXs, color: COLORES.textoSecundario, fontWeight: FUENTE.pesoSemibold }}>
-                {walletSeleccionado.nombre}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        )}
+        <EncabezadoPanelSuperior
+          lineaSuperior={fechaTexto}
+          titulo="Panel de control"
+          onPressPerfil={irAPerfil}
+          onPressNotificaciones={onNotificacionesPlaceholder}
+          onPressCambiarWorkspace={volverAElegirWorkspace}
+          colorWorkspace={walletSeleccionado?.color}
+        />
 
         {/* 1. Pendiente de cobro/pago + tarjetas + lista */}
         <Text style={estilos.seccionTitulo}>Pendiente de cobro/pago</Text>
@@ -364,7 +360,7 @@ const Inicio: React.FC = () => {
             icono="receipt-outline"
             color={COLORES.advertencia}
             fondo={COLORES.advertenciaClaro}
-            onPress={() => navigation.navigate('MasTab')}
+            onPress={() => navigation.navigate('GastosTab', { screen: 'ListaGastos' })}
           />
           <TarjetaFinanciera
             titulo="Sin saldar"
@@ -492,7 +488,7 @@ const Inicio: React.FC = () => {
             descripcion="Registrar egreso"
             color={COLORES.advertencia}
             fondo={COLORES.advertenciaClaro}
-            onPress={() => navigation.navigate('MasTab')}
+            onPress={() => navigation.navigate('GastosTab', { screen: 'CrearGasto' })}
           />
         </View>
 
@@ -610,6 +606,28 @@ const Inicio: React.FC = () => {
             </ScrollView>
           </>
         )}
+
+        <TouchableOpacity
+          style={[estilos.gananciaCard, { backgroundColor: colorFondoResumenPeriodo, marginTop: ESPACIADO.xs }]}
+          onPress={irAResumenPeriodo}
+          activeOpacity={0.92}
+          accessibilityRole="button"
+          accessibilityLabel="Abrir resumen por periodo"
+        >
+          <View style={estilos.gananciaTitulo}>
+            <View style={estilos.gananciaTituloLeft}>
+              <View style={estilos.gananciaBadge}>
+                <Ionicons name="bar-chart-outline" size={13} color={COLORES.blanco} />
+                <Text style={estilos.gananciaBadgeTexto}>Tendencia</Text>
+              </View>
+              <Text style={estilos.accesoResumenPeriodoHero}>Resumen por periodo</Text>
+            </View>
+            <View style={estilos.gananciaInfoBtn}>
+              <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.7)" />
+            </View>
+          </View>
+          <Text style={estilos.accesoResumenPeriodoSubBlanco}>Mes, año y tendencia del workspace</Text>
+        </TouchableOpacity>
 
         {/* 5. Ingresos / gastos / IVA / ganancia neta totales */}
         {estadisticas &&

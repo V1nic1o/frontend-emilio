@@ -555,7 +555,7 @@ export const generarHTMLCotizacion = (pedido: Pedido, perfil?: PerfilEmpresa | n
   const empresaRaw =
     perfil ??
     ({
-      usuarioId: 0,
+      walletId: 0,
       nombreEmpresa: null,
       logoBase64: null,
       logoUrl: null,

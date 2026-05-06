@@ -195,10 +195,8 @@ const DetalleGananciaMesPantalla: React.FC<Props> = ({ navigation }) => {
   };
 
   const irGastos = () => {
-    const root = navigation.getParent()?.getParent() as unknown as
-      | { navigate: (name: 'GastosStack', params: { screen: string }) => void }
-      | undefined;
-    root?.navigate('GastosStack', { screen: 'ListaGastos' });
+    const tabNav = navigation.getParent();
+    tabNav?.navigate('GastosTab', { screen: 'ListaGastos' });
   };
 
   if (!walletSeleccionado) {
