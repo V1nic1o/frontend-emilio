@@ -99,7 +99,7 @@ const MODOS_CREACION: ConfigModoCreacion[] = [
   {
     valor: 'venta_proveedor',
     tituloCorto: 'Venta\nproveedor',
-    ayuda: 'Sin cliente en la app: solo costos y pagos vinculados a un proveedor.',
+    ayuda: 'Cliente paga al proveedor; registrás costos y lo que te reparte.',
     icono: 'business',
     color: COLORES.proveedor,
     fondo: COLORES.proveedorClaro,
@@ -278,12 +278,13 @@ const CrearPedido: React.FC<Props> = ({ navigation, route }) => {
       return;
     }
     if (modoCreacion === 'venta_proveedor') {
-      setPersonaSeleccionada(null);
+      // Permitir cliente + proveedor: solo limpiar si la persona NO es cliente
+      if (personaSeleccionada && personaSeleccionada.tipo !== 'cliente') setPersonaSeleccionada(null);
       return;
     }
     // venta_cliente
     if (personaSeleccionada && personaSeleccionada.tipo !== 'cliente') setPersonaSeleccionada(null);
-  }, [modoCreacion]);
+  }, [modoCreacion, personaSeleccionada]);
 
   /** Desde detalle de un proveedor: al elegir «Venta proveedor», prellenar ese contacto. */
   useEffect(() => {
@@ -373,9 +374,16 @@ const CrearPedido: React.FC<Props> = ({ navigation, route }) => {
         mostrarAlerta('Falta el cliente', 'Seleccioná el cliente de esta venta.');
         return false;
       }
-    } else if (!proveedorSeleccionado) {
-      mostrarAlerta('Falta el proveedor', 'En «Venta por proveedor» tenés que elegir el proveedor de costo.');
-      return false;
+    } else {
+      // venta_proveedor: requiere CLIENTE Y PROVEEDOR
+      if (!personaSeleccionada) {
+        mostrarAlerta('Falta el cliente', 'Seleccioná el cliente que le paga al proveedor.');
+        return false;
+      }
+      if (!proveedorSeleccionado) {
+        mostrarAlerta('Falta el proveedor', 'Seleccioná el proveedor de costo.');
+        return false;
+      }
     }
     for (const item of items) {
       if (!item.nombre.trim()) { mostrarAlerta('Nombre requerido', 'Todos los ítems deben tener un nombre'); return false; }
@@ -408,6 +416,7 @@ const CrearPedido: React.FC<Props> = ({ navigation, route }) => {
         tipo: tipoPedido,
         nombreReferencia: nombreReferencia.trim() || undefined,
         impuesto: impuestoNum && impuestoNum > 0 ? impuestoNum : undefined,
+        esIntermediacion: modoCreacion === 'venta_proveedor',
         items: itemsDto,
         pagoInicial: mostrarPago && montoInicial > 0 ? { monto: montoInicial } : undefined,
       });
@@ -419,10 +428,9 @@ const CrearPedido: React.FC<Props> = ({ navigation, route }) => {
     }
   };
 
-  // NUNCA hacer fallback a personas de tipo incorrecto: si no hay clientes para una venta,
-  // mostrar lista vacía con mensaje — no mezclar proveedores como posibles clientes
+  // Modal persona: en 'compra' muestra proveedores, en ventas muestra clientes
   const personasModal = personas.filter((p) =>
-    modoCreacion === 'venta_cliente' ? p.tipo === 'cliente' : p.tipo === 'proveedor',
+    modoCreacion === 'compra' ? p.tipo === 'proveedor' : p.tipo === 'cliente',
   );
   const proveedoresDisponibles = personas.filter((p) => p.tipo === 'proveedor');
 
@@ -577,55 +585,93 @@ const CrearPedido: React.FC<Props> = ({ navigation, route }) => {
             </>
           )}
 
-          {/* Venta por proveedor: solo proveedor de costo (obligatorio) */}
+          {/* Venta por proveedor: cliente + proveedor (ambos obligatorios) */}
           {modoCreacion === 'venta_proveedor' && (
-            <View style={estilosSeccion.tarjeta}>
-              <Text style={estilosSeccion.titulo}>Proveedor de costo</Text>
-              <Text style={estilosSeccion.descripcion}>
-                No registrás cliente final en la app. El pedido queda vinculado a este proveedor para costos y pagos.
-              </Text>
-              <Text style={estilos.etiqueta}>Elegí proveedor (obligatorio)</Text>
-              <TouchableOpacity
-                style={[estilos.selectorPersona, !proveedorSeleccionado && estilos.selectorPersonaVacio, { marginBottom: 0 }]}
-                onPress={() => setModalProveedor(true)}
-                activeOpacity={0.85}
-              >
-                {proveedorSeleccionado ? (
-                  <View style={estilos.personaSeleccionada}>
-                    <View style={[estilos.avatarPequeno, { backgroundColor: COLORES.proveedorClaro }]}>
-                      <Text style={[estilos.avatarLetra, { color: COLORES.proveedor }]}>
-                        {proveedorSeleccionado.nombre.charAt(0).toUpperCase()}
-                      </Text>
+            <>
+              <View style={estilosSeccion.tarjeta}>
+                <Text style={estilosSeccion.titulo}>Cliente</Text>
+                <Text style={estilosSeccion.descripcion}>
+                  Cliente final que le paga al proveedor. Registrás su nombre para el seguimiento.
+                </Text>
+                <Text style={estilos.etiqueta}>Elegí cliente (obligatorio)</Text>
+                <TouchableOpacity
+                  style={[estilos.selectorPersona, !personaSeleccionada && estilos.selectorPersonaVacio, { marginBottom: 0 }]}
+                  onPress={() => setModalPersona(true)}
+                  activeOpacity={0.85}
+                >
+                  {personaSeleccionada ? (
+                    <View style={estilos.personaSeleccionada}>
+                      <View style={[estilos.avatarPequeno, { backgroundColor: COLORES.clienteClaro }]}>
+                        <Text style={[estilos.avatarLetra, { color: COLORES.cliente }]}>
+                          {personaSeleccionada.nombre.charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={estilos.personaNombre}>{personaSeleccionada.nombre}</Text>
+                        <Text style={estilos.personaTipo}>Cliente · paga al proveedor</Text>
+                      </View>
+                      <View style={estilos.cambiarBtn}><Text style={estilos.cambiarTexto}>Cambiar</Text></View>
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={estilos.personaNombre}>{proveedorSeleccionado.nombre}</Text>
-                      <Text style={estilos.personaTipo}>Proveedor</Text>
+                  ) : (
+                    <View style={estilos.personaPlaceholder}>
+                      <View style={estilos.placeholderIcon}>
+                        <Ionicons name="person-add-outline" size={20} color={COLORES.textoDeshabilitado} />
+                      </View>
+                      <Text style={estilos.placeholderTexto}>Seleccioná el cliente</Text>
+                      <Ionicons name="chevron-forward" size={18} color={COLORES.textoDeshabilitado} />
                     </View>
-                    <TouchableOpacity onPress={() => setProveedorSeleccionado(null)} style={estilosProveedor.quitarBtn}>
-                      <Ionicons name="close-circle" size={20} color={COLORES.textoDeshabilitado} />
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <View style={estilos.personaPlaceholder}>
-                    <View style={estilos.placeholderIcon}>
-                      <Ionicons name="business-outline" size={20} color={COLORES.textoDeshabilitado} />
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              <View style={estilosSeccion.tarjeta}>
+                <Text style={estilosSeccion.titulo}>Proveedor de costo</Text>
+                <Text style={estilosSeccion.descripcion}>
+                  Proveedor que recibe el pago del cliente y te reparte tu margen. Registrás costos y pagos con él.
+                </Text>
+                <Text style={estilos.etiqueta}>Elegí proveedor (obligatorio)</Text>
+                <TouchableOpacity
+                  style={[estilos.selectorPersona, !proveedorSeleccionado && estilos.selectorPersonaVacio, { marginBottom: 0 }]}
+                  onPress={() => setModalProveedor(true)}
+                  activeOpacity={0.85}
+                >
+                  {proveedorSeleccionado ? (
+                    <View style={estilos.personaSeleccionada}>
+                      <View style={[estilos.avatarPequeno, { backgroundColor: COLORES.proveedorClaro }]}>
+                        <Text style={[estilos.avatarLetra, { color: COLORES.proveedor }]}>
+                          {proveedorSeleccionado.nombre.charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={estilos.personaNombre}>{proveedorSeleccionado.nombre}</Text>
+                        <Text style={estilos.personaTipo}>Proveedor · recibe pago del cliente</Text>
+                      </View>
+                      <TouchableOpacity onPress={() => setProveedorSeleccionado(null)} style={estilosProveedor.quitarBtn}>
+                        <Ionicons name="close-circle" size={20} color={COLORES.textoDeshabilitado} />
+                      </TouchableOpacity>
                     </View>
-                    <Text style={estilos.placeholderTexto}>Seleccioná el proveedor</Text>
-                    <Ionicons name="chevron-forward" size={18} color={COLORES.textoDeshabilitado} />
-                  </View>
-                )}
-              </TouchableOpacity>
-            </View>
+                  ) : (
+                    <View style={estilos.personaPlaceholder}>
+                      <View style={estilos.placeholderIcon}>
+                        <Ionicons name="business-outline" size={20} color={COLORES.textoDeshabilitado} />
+                      </View>
+                      <Text style={estilos.placeholderTexto}>Seleccioná el proveedor</Text>
+                      <Ionicons name="chevron-forward" size={18} color={COLORES.textoDeshabilitado} />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </>
           )}
 
           <CampoTexto
-            etiqueta="Nombre o referencia del pedido (opcional)"
-            placeholder="Ej: Cotización Hotel Mar · Pedido feria abril"
+            etiqueta={modoCreacion === 'venta_proveedor' ? "Información adicional (opcional)" : "Nombre o referencia del pedido (opcional)"}
+            placeholder={modoCreacion === 'venta_proveedor' ? "Ej: Evento mayo, Hotel Mar" : "Ej: Cotización Hotel Mar · Pedido feria abril"}
             value={nombreReferencia}
             onChangeText={setNombreReferencia}
             maxLength={200}
             icono="pricetag-outline"
-            ayuda="Se muestra en listas y en los PDF en lugar de solo «Pedido #»."
+            ayuda={modoCreacion === 'venta_proveedor' ? "Info extra del pedido. El nombre del cliente se muestra automáticamente." : "Se muestra en listas y en los PDF en lugar de solo «Pedido #»."}
           />
 
           {/* Ítems */}
@@ -805,10 +851,10 @@ const CrearPedido: React.FC<Props> = ({ navigation, route }) => {
           <View style={estilos.modalHeader}>
             <View>
               <Text style={estilos.modalTitulo}>
-                {modoCreacion === 'venta_cliente' ? 'Seleccioná el cliente' : 'Seleccioná el proveedor'}
+                {modoCreacion === 'compra' ? 'Seleccioná el proveedor' : 'Seleccioná el cliente'}
               </Text>
               <Text style={estilos.modalSubtitulo}>
-                {personasModal.length} {modoCreacion === 'venta_cliente' ? 'clientes' : 'proveedores'} disponibles
+                {personasModal.length} {modoCreacion === 'compra' ? 'proveedores' : 'clientes'} disponibles
               </Text>
             </View>
             <TouchableOpacity onPress={() => setModalPersona(false)} style={estilos.modalCerrarBtn}>
@@ -819,7 +865,7 @@ const CrearPedido: React.FC<Props> = ({ navigation, route }) => {
             data={personasModal}
             keyExtractor={(item) => String(item.id)}
             ListHeaderComponent={
-              modoCreacion === 'venta_cliente' && personaSeleccionada ? (
+              modoCreacion !== 'compra' && personaSeleccionada ? (
                 <TouchableOpacity
                   style={{ paddingVertical: ESPACIADO.md, marginBottom: ESPACIADO.xs }}
                   onPress={() => {

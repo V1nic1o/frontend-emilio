@@ -254,6 +254,7 @@ export interface Pedido {
   tipo: TipoPedido;
   nombreReferencia?: string | null;
   impuesto?: number;
+  esIntermediacion?: boolean;
   fecha: string;
   createdAt: string;
   persona?: Persona;
@@ -298,6 +299,7 @@ export interface CrearPedidoDto {
   tipo: TipoPedido;
   nombreReferencia?: string;
   impuesto?: number;
+  esIntermediacion?: boolean;
   fecha?: string;
   items: CrearItemDto[];
   pagoInicial?: CrearPagoDto;
@@ -307,6 +309,7 @@ export interface CrearPedidoDto {
 export interface ActualizarPedidoDto {
   nombreReferencia?: string;
   impuesto?: number | null;
+  personaId?: number | null;
 }
 
 // ─── Asesoría mensual por cliente (API: asesorías) ───────────────────────────

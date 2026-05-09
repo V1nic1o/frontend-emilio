@@ -152,7 +152,9 @@ const ListaPedidos: React.FC<Props> = ({ navigation }) => {
           {/* Nombre persona */}
           <Text style={estilos.personaNombre} numberOfLines={1}>
             {item.persona?.nombre ??
-              (item.tipo === 'venta' && item.proveedor?.nombre ? item.proveedor.nombre : '—')}
+              (item.tipo === 'venta' && !item.persona
+                ? item.nombreReferencia?.trim() || 'Sin cliente'
+                : '—')}
           </Text>
 
           {/* Barra de progreso + totales */}
