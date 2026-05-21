@@ -25,6 +25,7 @@ import { FUENTE, ESPACIADO, RADIO } from '../../estilos/tema';
 import { formatearMoneda } from '../../utilidades/formato';
 import type { MesEstadistica } from '../../tipos';
 import IndicadorWorkspaceHeader from '../../componentes/IndicadorWorkspaceHeader';
+import { DesgloseMesContenido } from '../../componentes/DesgloseMesContenido';
 
 type Props = NativeStackScreenProps<InicioStackParamList, 'DetalleGananciaMes'>;
 type TabNav = BottomTabNavigationProp<TabParamList>;
@@ -63,17 +64,30 @@ const DetalleGananciaMesPantalla: React.FC<Props> = ({ navigation }) => {
   const tabNavigation = useNavigation<TabNav>();
   const { width: winW } = useWindowDimensions();
   const chartWidth = Math.max(260, winW - ESPACIADO.md * 2);
-  const { walletSeleccionado } = useWallet();
+  const { walletSeleccionado, finanzasEpoch } = useWallet();
   const { estadisticas, cargando, error, cargar } = useEstadisticas();
   const [modalInfo, setModalInfo] = useState(false);
 
-  const hoy = new Date();
-  const anio = hoy.getFullYear();
-  const mesIdx = hoy.getMonth();
-  const etiquetaMesCorto = MESES_CORTO[mesIdx] ?? '';
-  const tituloPeriodo = `${MESES_LARGO[mesIdx] ?? ''} ${anio}`;
+  /** Último mes de la serie = mes contable actual del backend (America/Guatemala), alineado con la tarjeta «Este mes» del inicio. */
+  const gananciaMes =
+    estadisticas?.porMes && estadisticas.porMes.length > 0
+      ? estadisticas.porMes[estadisticas.porMes.length - 1]
+      : undefined;
 
-  const gananciaMes = estadisticas?.porMes.find((m) => m.anio === anio && m.mes === etiquetaMesCorto);
+  const tituloPeriodo = (() => {
+    if (gananciaMes) {
+      const idx = MESES_CORTO.indexOf(gananciaMes.mes);
+      const largo = idx >= 0 ? MESES_LARGO[idx] : gananciaMes.mes.toLowerCase();
+      return `${largo} ${gananciaMes.anio}`;
+    }
+    const h = new Date();
+    return `${MESES_LARGO[h.getMonth()]} ${h.getFullYear()}`;
+  })();
+
+  const tituloCabeceraNavegacion =
+    gananciaMes != null
+      ? tituloPeriodo.charAt(0).toLocaleUpperCase('es') + tituloPeriodo.slice(1)
+      : 'Detalle del mes';
 
   const gananciaNetaMes = gananciaMes?.gananciaNeta ?? 0;
   const gananciaBruta = gananciaMes?.ganancia ?? 0;
@@ -162,9 +176,16 @@ const DetalleGananciaMesPantalla: React.FC<Props> = ({ navigation }) => {
     );
   }, [gananciaMes, gananciaBruta, gananciaNetaMes, ivaMes]);
 
+  const mesCalendarioGanancia = useMemo(() => {
+    if (!gananciaMes) return null;
+    const idx = MESES_CORTO.indexOf(gananciaMes.mes);
+    if (idx < 0) return null;
+    return { anio: gananciaMes.anio, mes: idx + 1 };
+  }, [gananciaMes]);
+
   useLayoutEffect(() => {
     navigation.setOptions({
-      title: 'Detalle del mes',
+      title: tituloCabeceraNavegacion,
       headerBackTitle: '',
       headerRight: () => (
         <View style={estilosHeader.headerDerFila}>
@@ -182,7 +203,7 @@ const DetalleGananciaMesPantalla: React.FC<Props> = ({ navigation }) => {
         </View>
       ),
     });
-  }, [navigation]);
+  }, [navigation, tituloCabeceraNavegacion]);
 
   useFocusEffect(
     useCallback(() => {
@@ -215,6 +236,9 @@ const DetalleGananciaMesPantalla: React.FC<Props> = ({ navigation }) => {
         showsVerticalScrollIndicator={false}
       >
         <Text style={estilos.periodoTitulo}>{tituloPeriodo}</Text>
+        <Text style={estilos.pantallaKicker}>
+          Mismo mes que la tarjeta «Este mes» del inicio (fechas en negocio).
+        </Text>
 
         <TouchableOpacity
           style={estilos.btnModalAyuda}
@@ -231,6 +255,7 @@ const DetalleGananciaMesPantalla: React.FC<Props> = ({ navigation }) => {
         {cargando && !estadisticas ? (
           <View style={estilos.cargandoBox}>
             <ActivityIndicator size="large" color={COLORES.primario} />
+            <Text style={estilos.cargandoTxt}>Cargando estadísticas…</Text>
           </View>
         ) : error ? (
           <Text style={estilos.errorTxt}>{error}</Text>
@@ -238,14 +263,15 @@ const DetalleGananciaMesPantalla: React.FC<Props> = ({ navigation }) => {
           <View style={estilos.avisoSuave}>
             <Ionicons name="analytics-outline" size={22} color={COLORES.textoSecundario} />
             <Text style={estilos.avisoTxt}>
-              Sin movimientos en estadísticas para {tituloPeriodo}. Cuando registres cobros o gastos con fecha en este mes,
-              verás el resumen aquí.
+              Todavía no hay datos para {tituloPeriodo}. Cuando haya cobros o gastos con fecha en este mes, el resumen
+              aparece acá.
             </Text>
           </View>
         ) : (
           <>
             <View style={[estilos.hero, { backgroundColor: esNetaPositiva ? COLORES.primario : COLORES.peligro }]}>
               <Text style={estilos.heroEtiqueta}>Ganancia neta del mes</Text>
+              <Text style={estilos.heroSub}>Lo que quedó después de costos y gastos del mes.</Text>
               <Text style={estilos.heroValor} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
                 {esNetaPositiva ? '' : '−'}
                 {formatearMoneda(Math.abs(gananciaNetaMes))}
@@ -254,7 +280,10 @@ const DetalleGananciaMesPantalla: React.FC<Props> = ({ navigation }) => {
 
             {tendenciaChart && (
               <>
-                <Text style={estilos.seccionTitulo}>Ganancia neta reciente</Text>
+                <View style={estilos.seccionCab}>
+                  <Text style={estilos.seccionTitulo}>Ganancia neta reciente</Text>
+                  <Text style={estilos.seccionSub}>Últimos meses según fecha de cobro o gasto.</Text>
+                </View>
                 <View style={estilos.chartCard}>
                   <LineChart
                     data={{
@@ -281,7 +310,10 @@ const DetalleGananciaMesPantalla: React.FC<Props> = ({ navigation }) => {
               </>
             )}
 
-            <Text style={estilos.seccionTitulo}>Origen de la ganancia neta</Text>
+            <View style={estilos.seccionCab}>
+              <Text style={estilos.seccionTitulo}>Origen de la ganancia neta</Text>
+              <Text style={estilos.seccionSub}>Reparto entre pedidos y asesorías en este mes.</Text>
+            </View>
             <View style={estilos.tarjetaVisual}>
               {pieData.length > 0 ? (
                 <PieChart
@@ -321,7 +353,10 @@ const DetalleGananciaMesPantalla: React.FC<Props> = ({ navigation }) => {
               </View>
             </View>
 
-            <Text style={estilos.seccionTitulo}>Flujo del mes</Text>
+            <View style={estilos.seccionCab}>
+              <Text style={estilos.seccionTitulo}>Flujo del mes</Text>
+              <Text style={estilos.seccionSub}>Del dinero que entró hasta el resultado.</Text>
+            </View>
             <View style={estilos.tabla}>
               <BarraFlujo
                 etiqueta="Ingresos cobrados"
@@ -374,7 +409,24 @@ const DetalleGananciaMesPantalla: React.FC<Props> = ({ navigation }) => {
               />
             </View>
 
-            <Text style={estilos.seccionTitulo}>Ir a los datos</Text>
+            <View style={estilos.seccionCab}>
+              <Text style={estilos.seccionTitulo}>Movimientos del mes</Text>
+              <Text style={estilos.seccionSub}>Lista trazable de cobros y gastos del mes.</Text>
+            </View>
+            {walletSeleccionado && mesCalendarioGanancia ? (
+              <DesgloseMesContenido
+                walletId={walletSeleccionado.id}
+                anio={mesCalendarioGanancia.anio}
+                mes={mesCalendarioGanancia.mes}
+                syncKey={String(finanzasEpoch)}
+                mostrarIntro={false}
+              />
+            ) : null}
+
+            <View style={estilos.seccionCab}>
+              <Text style={estilos.seccionTitulo}>Ir a los datos</Text>
+              <Text style={estilos.seccionSub}>Pedidos y gastos para registrar o revisar.</Text>
+            </View>
             <TouchableOpacity style={estilos.btnAccion} onPress={irPedidos} activeOpacity={0.85}>
               <Ionicons name="cube-outline" size={22} color={COLORES.primario} />
               <View style={estilos.btnAccionTxt}>
@@ -405,11 +457,11 @@ const DetalleGananciaMesPantalla: React.FC<Props> = ({ navigation }) => {
             <ScrollView style={estilos.modalScroll} showsVerticalScrollIndicator={false}>
               <Text style={estilos.modalPar}>
                 <Text style={estilos.modalBold}>Ingresos cobrados: </Text>
-                ventas cobradas en el mes más asesorías marcadas pagadas en el mes.
+                cobros del cliente en ventas, reparto del proveedor en intermediación, ingresos cliente→proveedor en venta sin cliente en la app, más asesorías marcadas pagadas en el mes; todo con fecha en el mes (zona Guatemala).
               </Text>
               <Text style={estilos.modalPar}>
                 <Text style={estilos.modalBold}>Costo de ventas: </Text>
-                lo pagado por mercancía vendida en pedidos (mismo periodo).
+                costo de mercancía reconocido con esos cobros (prorrateado) más pagos a proveedor en compras registrados en el mes.
               </Text>
               <Text style={estilos.modalPar}>
                 <Text style={estilos.modalBold}>Margen bruto: </Text>
@@ -422,7 +474,7 @@ const DetalleGananciaMesPantalla: React.FC<Props> = ({ navigation }) => {
               </Text>
               <Text style={estilos.modalPar}>
                 <Text style={estilos.modalBold}>IVA: </Text>
-                informativo, asociado a ventas cobradas con impuesto.
+                informativo, prorrateado según cobros de ventas con impuesto en el mes más IVA de asesorías pagadas en el mes.
               </Text>
               <Text style={[estilos.modalPar, { marginBottom: 0 }]}>
                 <Text style={estilos.modalBold}>Ganancia neta: </Text>
@@ -480,7 +532,13 @@ const estilos = StyleSheet.create({
     fontWeight: FUENTE.pesoBold,
     color: COLORES.texto,
     textTransform: 'capitalize',
-    marginBottom: ESPACIADO.sm,
+    marginBottom: ESPACIADO.xs,
+  },
+  pantallaKicker: {
+    fontSize: FUENTE.tamanoXs,
+    color: COLORES.textoSecundario,
+    lineHeight: 16,
+    marginBottom: ESPACIADO.md,
   },
   btnModalAyuda: {
     flexDirection: 'row',
@@ -500,7 +558,12 @@ const estilos = StyleSheet.create({
     fontWeight: FUENTE.pesoSemibold,
     color: COLORES.primarioOscuro,
   },
-  cargandoBox: { paddingVertical: ESPACIADO.xl, alignItems: 'center' },
+  cargandoBox: {
+    paddingVertical: ESPACIADO.xl,
+    alignItems: 'center',
+    gap: ESPACIADO.sm,
+  },
+  cargandoTxt: { fontSize: FUENTE.tamanoPequeno, color: COLORES.textoSecundario, fontWeight: FUENTE.pesoSemibold },
   errorTxt: { color: COLORES.peligro, fontSize: FUENTE.tamanoBase, padding: ESPACIADO.md },
   avisoSuave: {
     flexDirection: 'row',
@@ -519,15 +582,27 @@ const estilos = StyleSheet.create({
     marginBottom: ESPACIADO.lg,
   },
   heroEtiqueta: { color: 'rgba(255,255,255,0.9)', fontSize: FUENTE.tamanoPequeno, marginBottom: ESPACIADO.xs },
+  heroSub: {
+    color: 'rgba(255,255,255,0.82)',
+    fontSize: FUENTE.tamanoXs,
+    lineHeight: 16,
+    marginBottom: ESPACIADO.sm,
+  },
   heroValor: { color: COLORES.blanco, fontSize: 32, fontWeight: FUENTE.pesoBold, letterSpacing: -0.5 },
 
+  seccionCab: { marginBottom: ESPACIADO.md },
   seccionTitulo: {
     fontSize: FUENTE.tamanoPequeno,
     fontWeight: FUENTE.pesoBold,
     color: COLORES.textoSecundario,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
-    marginBottom: ESPACIADO.xs,
+    marginBottom: 4,
+  },
+  seccionSub: {
+    fontSize: FUENTE.tamanoXs,
+    color: COLORES.textoSecundario,
+    lineHeight: 17,
   },
 
   tarjetaVisual: {

@@ -44,6 +44,8 @@ import PedidosPorPagarPantalla from '../pantallas/Inicio/PedidosPorPagarPantalla
 import PendientesSinSaldarPantalla from '../pantallas/Inicio/PendientesSinSaldarPantalla';
 import PorCobrarDetallePantalla from '../pantallas/Inicio/PorCobrarDetallePantalla';
 import DetalleGananciaMesPantalla from '../pantallas/Inicio/DetalleGananciaMesPantalla';
+import DesgloseMesPantalla from '../pantallas/Inicio/DesgloseMesPantalla';
+import HistorialMesesAcumuladoPantalla from '../pantallas/Inicio/HistorialMesesAcumuladoPantalla';
 import ResumenPeriodoPantalla from '../pantallas/Inicio/ResumenPeriodoPantalla';
 import ListaPersonas from '../pantallas/Personas/ListaPersonas';
 import CrearPersona from '../pantallas/Personas/CrearPersona';
@@ -191,7 +193,13 @@ function InicioNavigator() {
         component={DetalleGananciaMesPantalla}
         options={{ title: 'Detalle del mes' }}
       />
-      <InicioStack.Screen name="ResumenPeriodo" component={ResumenPeriodoPantalla} options={{ title: 'Resumen por periodo' }} />
+      <InicioStack.Screen name="DesgloseMes" component={DesgloseMesPantalla} options={{ title: 'Movimientos del mes' }} />
+      <InicioStack.Screen
+        name="HistorialMesesAcumulado"
+        component={HistorialMesesAcumuladoPantalla}
+        options={{ title: 'Historial por mes' }}
+      />
+      <InicioStack.Screen name="ResumenPeriodo" component={ResumenPeriodoPantalla} options={{ title: 'Resumen · negocio' }} />
       <InicioStack.Screen name="CambiarContrasena" component={CambiarContrasena} options={{ title: 'Cambiar contraseña' }} />
     </InicioStack.Navigator>
   );
@@ -249,7 +257,7 @@ function InicioPersonalNavigator() {
       <InicioPersonalStack.Screen
         name="ResumenPeriodo"
         component={ResumenPeriodoPantalla}
-        options={{ title: 'Resumen por periodo' }}
+        options={{ title: 'Resumen · personal' }}
       />
       <InicioPersonalStack.Screen
         name="CambiarContrasena"

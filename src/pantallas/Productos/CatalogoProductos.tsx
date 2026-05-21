@@ -9,6 +9,8 @@ import {
   TextInput,
   ScrollView,
   useWindowDimensions,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -18,6 +20,8 @@ import { CatalogoStackParamList } from '../../navegacion/tipos';
 import { useWallet } from '../../contexto/WalletContext';
 import { useCarritoCatalogoPedido } from '../../contexto/CarritoCatalogoContext';
 import { productosServicio } from '../../servicios/productos.servicio';
+import { perfilServicio } from '../../servicios/perfil.servicio';
+import { generarYCompartirPdfCatalogo } from '../../utilidades/pdf';
 import { Producto } from '../../tipos';
 import FAB from '../../componentes/FAB';
 import CargandoSpinner from '../../componentes/CargandoSpinner';
@@ -105,6 +109,9 @@ const CatalogoProductos: React.FC<Props> = ({ navigation }) => {
   const [busqueda, setBusqueda] = useState('');
   const [modoArmarPedido, setModoArmarPedido] = useState(false);
   const [seleccionIds, setSeleccionIds] = useState<Set<number>>(new Set());
+  const [modoSeleccionPdf, setModoSeleccionPdf] = useState(false);
+  const [seleccionPdfIds, setSeleccionPdfIds] = useState<Set<number>>(new Set());
+  const [generandoPdf, setGenerandoPdf] = useState(false);
 
   const cargar = useCallback(async () => {
     if (!walletSeleccionado) return;
@@ -130,15 +137,80 @@ const CatalogoProductos: React.FC<Props> = ({ navigation }) => {
     if (route.params?.limpiarSeleccion) {
       setSeleccionIds(new Set());
       setModoArmarPedido(false);
+      setSeleccionPdfIds(new Set());
+      setModoSeleccionPdf(false);
       navigation.setParams({ limpiarSeleccion: undefined });
     }
   }, [route.params?.limpiarSeleccion, navigation]);
+
+  const salirModoSeleccionPdf = useCallback(() => {
+    setModoSeleccionPdf(false);
+    setSeleccionPdfIds(new Set());
+  }, []);
 
   const productosFiltrados = useMemo(() => {
     const q = normalizarBusqueda(busqueda);
     if (!q) return productos;
     return productos.filter((p) => p.nombre.toLowerCase().includes(q));
   }, [productos, busqueda]);
+
+  const generarPdfCatalogo = useCallback(
+    async (lista: Producto[]) => {
+      if (!walletSeleccionado) return;
+      setGenerandoPdf(true);
+      try {
+        const perfil = await perfilServicio.obtener(walletSeleccionado.id);
+        await generarYCompartirPdfCatalogo(lista, perfil);
+      } catch (e: unknown) {
+        mostrarAlerta('Error', e instanceof Error ? e.message : 'No se pudo generar el catálogo');
+      } finally {
+        setGenerandoPdf(false);
+      }
+    },
+    [walletSeleccionado],
+  );
+
+  const compartirCatalogoPdf = useCallback(async () => {
+    const lista = productosFiltrados.filter((p) => p.tipo === 'bien');
+    if (lista.length === 0) {
+      mostrarAlerta(
+        'Sin productos',
+        busqueda.trim()
+          ? 'No hay productos (solo bienes) que coincidan con la búsqueda. Los servicios no se incluyen en el PDF.'
+          : 'Agregá productos al catálogo antes de compartir. Los servicios no se incluyen en el PDF.',
+      );
+      return;
+    }
+    await generarPdfCatalogo(lista);
+  }, [productosFiltrados, busqueda, generarPdfCatalogo]);
+
+  const compartirCatalogoPdfSeleccion = useCallback(async () => {
+    const lista = productosFiltrados.filter((p) => seleccionPdfIds.has(p.id) && p.tipo === 'bien');
+    if (lista.length === 0) {
+      mostrarAlerta(
+        'Sin productos',
+        seleccionPdfIds.size === 0
+          ? 'Marcá al menos un producto tocando su tarjeta.'
+          : 'Los servicios no se incluyen en el PDF. Seleccioná solo productos (no servicios).',
+      );
+      return;
+    }
+    await generarPdfCatalogo(lista);
+    salirModoSeleccionPdf();
+  }, [productosFiltrados, seleccionPdfIds, generarPdfCatalogo, salirModoSeleccionPdf]);
+
+  const toggleSeleccionPdf = useCallback((producto: Producto) => {
+    if (producto.tipo !== 'bien') {
+      mostrarAlerta('Servicio', 'Los servicios no se incluyen en el PDF. Elegí solo productos.');
+      return;
+    }
+    setSeleccionPdfIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(producto.id)) next.delete(producto.id);
+      else next.add(producto.id);
+      return next;
+    });
+  }, []);
 
   const toggleSeleccion = useCallback((id: number) => {
     setSeleccionIds((prev) => {
@@ -159,6 +231,11 @@ const CatalogoProductos: React.FC<Props> = ({ navigation }) => {
           await productosServicio.eliminar(producto.id);
           setProductos((prev) => prev.filter((p) => p.id !== producto.id));
           setSeleccionIds((prev) => {
+            const next = new Set(prev);
+            next.delete(producto.id);
+            return next;
+          });
+          setSeleccionPdfIds((prev) => {
             const next = new Set(prev);
             next.delete(producto.id);
             return next;
@@ -192,7 +269,24 @@ const CatalogoProductos: React.FC<Props> = ({ navigation }) => {
           const color = esBien ? COLORES.primario : COLORES.morado;
           const fondo = esBien ? COLORES.primarioClaro : COLORES.moradoClaro;
           const inicial = item.nombre.charAt(0).toUpperCase();
-          const seleccionado = seleccionIds.has(item.id);
+          const seleccionadoPedido = seleccionIds.has(item.id);
+          const seleccionadoPdf = seleccionPdfIds.has(item.id);
+          const seleccionado = modoArmarPedido ? seleccionadoPedido : seleccionadoPdf;
+          const fotoUrl = item.imagenUrl?.trim();
+
+          const visualSuperior = fotoUrl ? (
+            <Image source={{ uri: fotoUrl }} style={estilos.tarjetaCatFoto} resizeMode="cover" />
+          ) : (
+            <>
+              <View style={[estilos.tarjetaCatAvatar, { backgroundColor: color }]}>
+                <Text style={estilos.tarjetaCatAvatarLetra}>{inicial}</Text>
+              </View>
+              <View style={[estilos.tarjetaCatPill, { backgroundColor: color }]}>
+                <Ionicons name={esBien ? 'cube' : 'construct'} size={8} color={COLORES.blanco} />
+                <Text style={estilos.tarjetaCatPillTxt}>{esBien ? 'Prod.' : 'Serv.'}</Text>
+              </View>
+            </>
+          );
 
           return (
             <View
@@ -200,13 +294,17 @@ const CatalogoProductos: React.FC<Props> = ({ navigation }) => {
               style={[
                 estilos.tarjetaCat,
                 { width: cardWidthGrid },
-                modoArmarPedido && estilos.tarjetaCatModoPedido,
-                modoArmarPedido && seleccionado && estilos.tarjetaCatSeleccionada,
+                (modoArmarPedido || modoSeleccionPdf) && estilos.tarjetaCatModoPedido,
+                (modoArmarPedido || modoSeleccionPdf) && seleccionado && estilos.tarjetaCatSeleccionada,
               ]}
             >
-              {modoArmarPedido && seleccionado && (
+              {(modoArmarPedido || modoSeleccionPdf) && seleccionado && (
                 <View style={estilos.tarjetaCatSelloOk} pointerEvents="none">
-                  <Ionicons name="checkmark-circle" size={22} color={COLORES.primario} />
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={22}
+                    color={modoSeleccionPdf ? COLORES.exito : COLORES.primario}
+                  />
                 </View>
               )}
               {modoArmarPedido ? (
@@ -215,19 +313,45 @@ const CatalogoProductos: React.FC<Props> = ({ navigation }) => {
                   onPress={() => toggleSeleccion(item.id)}
                   style={estilos.tarjetaCatTappable}
                   accessibilityRole="checkbox"
-                  accessibilityState={{ checked: seleccionado }}
+                  accessibilityState={{ checked: seleccionadoPedido }}
                   accessibilityLabel={
-                    seleccionado ? `${item.nombre}, seleccionado. Tocá para quitar.` : `${item.nombre}. Tocá la tarjeta para seleccionar.`
+                    seleccionadoPedido
+                      ? `${item.nombre}, seleccionado. Tocá para quitar.`
+                      : `${item.nombre}. Tocá la tarjeta para seleccionar.`
                   }
                 >
-                  <View style={[estilos.tarjetaCatTop, { backgroundColor: fondo }]}>
-                    <View style={[estilos.tarjetaCatAvatar, { backgroundColor: color }]}>
-                      <Text style={estilos.tarjetaCatAvatarLetra}>{inicial}</Text>
+                  <View style={[estilos.tarjetaCatTop, fotoUrl ? estilos.tarjetaCatTopConFoto : { backgroundColor: fondo }]}>
+                    {visualSuperior}
+                  </View>
+                  <View style={estilos.tarjetaCatBody}>
+                    <Text style={estilos.tarjetaCatNombre} numberOfLines={2}>
+                      {item.nombre}
+                    </Text>
+                    <View style={estilos.tarjetaCatPrecioFila}>
+                      <Text style={estilos.tarjetaCatPrecioEtq}>Costo</Text>
+                      <Text style={estilos.tarjetaCatPrecioVal}>{formatearMoneda(item.precioProveedor)}</Text>
                     </View>
-                    <View style={[estilos.tarjetaCatPill, { backgroundColor: color }]}>
-                      <Ionicons name={esBien ? 'cube' : 'construct'} size={8} color={COLORES.blanco} />
-                      <Text style={estilos.tarjetaCatPillTxt}>{esBien ? 'Prod.' : 'Serv.'}</Text>
+                    <View style={estilos.tarjetaCatPrecioFila}>
+                      <Text style={estilos.tarjetaCatPrecioEtq}>Venta</Text>
+                      <Text style={estilos.tarjetaCatPrecioVenta}>{formatearMoneda(item.precioEmpresa)}</Text>
                     </View>
+                  </View>
+                </TouchableOpacity>
+              ) : modoSeleccionPdf ? (
+                <TouchableOpacity
+                  activeOpacity={0.88}
+                  onPress={() => toggleSeleccionPdf(item)}
+                  style={estilos.tarjetaCatTappable}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: seleccionadoPdf }}
+                  accessibilityLabel={
+                    seleccionadoPdf
+                      ? `${item.nombre}, incluido en el PDF. Tocá para quitar.`
+                      : `${item.nombre}. Tocá la tarjeta para incluir en el PDF.`
+                  }
+                >
+                  <View style={[estilos.tarjetaCatTop, fotoUrl ? estilos.tarjetaCatTopConFoto : { backgroundColor: fondo }]}>
+                    {visualSuperior}
                   </View>
                   <View style={estilos.tarjetaCatBody}>
                     <Text style={estilos.tarjetaCatNombre} numberOfLines={2}>
@@ -249,14 +373,8 @@ const CatalogoProductos: React.FC<Props> = ({ navigation }) => {
                   onPress={() => navigation.navigate('FormProducto', { productoId: item.id })}
                   style={estilos.tarjetaCatTappable}
                 >
-                  <View style={[estilos.tarjetaCatTop, { backgroundColor: fondo }]}>
-                    <View style={[estilos.tarjetaCatAvatar, { backgroundColor: color }]}>
-                      <Text style={estilos.tarjetaCatAvatarLetra}>{inicial}</Text>
-                    </View>
-                    <View style={[estilos.tarjetaCatPill, { backgroundColor: color }]}>
-                      <Ionicons name={esBien ? 'cube' : 'construct'} size={8} color={COLORES.blanco} />
-                      <Text style={estilos.tarjetaCatPillTxt}>{esBien ? 'Prod.' : 'Serv.'}</Text>
-                    </View>
+                  <View style={[estilos.tarjetaCatTop, fotoUrl ? estilos.tarjetaCatTopConFoto : { backgroundColor: fondo }]}>
+                    {visualSuperior}
                   </View>
                   <View style={estilos.tarjetaCatBody}>
                     <Text style={estilos.tarjetaCatNombre} numberOfLines={2}>
@@ -291,7 +409,7 @@ const CatalogoProductos: React.FC<Props> = ({ navigation }) => {
                 >
                   <Ionicons name="pencil-outline" size={16} color={COLORES.primario} />
                 </TouchableOpacity>
-                {!modoArmarPedido && (
+                {!modoArmarPedido && !modoSeleccionPdf && (
                   <TouchableOpacity
                     style={[estilos.tarjetaCatAccion, { backgroundColor: COLORES.peligroClaro }]}
                     onPress={() => handleEliminar(item)}
@@ -308,9 +426,12 @@ const CatalogoProductos: React.FC<Props> = ({ navigation }) => {
     ),
     [
       modoArmarPedido,
+      modoSeleccionPdf,
       navigation,
       seleccionIds,
+      seleccionPdfIds,
       toggleSeleccion,
+      toggleSeleccionPdf,
       agregarProducto,
       handleEliminar,
       cardWidthGrid,
@@ -357,10 +478,13 @@ const CatalogoProductos: React.FC<Props> = ({ navigation }) => {
     const armarB = off + FAB_H + FAB_GAP;
     let base = 100;
     if (mostrarBarraCarrito) base = 180;
+    if (modoSeleccionPdf) {
+      return Math.max(base, off + FAB_H + 28);
+    }
     if (!modoArmarPedido) return Math.max(base, armarB + FAB_H + 28);
     if (seleccionIds.size > 0) return Math.max(base, off + FAB_H + 72 + 56);
     return Math.max(base, off + FAB_H + 28);
-  }, [mostrarBarraCarrito, modoArmarPedido, seleccionIds.size]);
+  }, [mostrarBarraCarrito, modoArmarPedido, modoSeleccionPdf, seleccionIds.size]);
 
   if (cargando && productos.length === 0) return <CargandoSpinner />;
   if (error) return <ErrorMensaje mensaje={error} onReintentar={cargar} />;
@@ -381,6 +505,83 @@ const CatalogoProductos: React.FC<Props> = ({ navigation }) => {
             clearButtonMode="while-editing"
           />
         </View>
+
+        {!modoArmarPedido && productos.some((p) => p.tipo === 'bien') && !modoSeleccionPdf && (
+          <View style={estilos.filaBtnsPdf}>
+            <TouchableOpacity
+              style={estilos.btnCompartirCatalogo}
+              onPress={compartirCatalogoPdf}
+              disabled={generandoPdf}
+              activeOpacity={0.88}
+              accessibilityRole="button"
+              accessibilityLabel="Compartir todo el catálogo con tus clientes"
+            >
+              {generandoPdf ? (
+                <ActivityIndicator size="small" color={COLORES.blanco} />
+              ) : (
+                <Ionicons name="share-outline" size={20} color={COLORES.blanco} />
+              )}
+              <Text style={estilos.btnCompartirCatalogoTxt} numberOfLines={2}>
+                {generandoPdf ? 'Preparando…' : 'Todo el catálogo'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={estilos.btnSeleccionarPdf}
+              onPress={() => {
+                setModoArmarPedido(false);
+                setSeleccionIds(new Set());
+                setModoSeleccionPdf(true);
+                setSeleccionPdfIds(new Set());
+              }}
+              disabled={generandoPdf}
+              activeOpacity={0.88}
+              accessibilityRole="button"
+              accessibilityLabel="Elegir qué productos incluir antes de compartir"
+            >
+              <Ionicons name="checkbox-outline" size={20} color={COLORES.primario} />
+              <Text style={estilos.btnSeleccionarPdfTxt} numberOfLines={2}>
+                Elegir productos
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {modoSeleccionPdf && (
+          <>
+            <Text style={estilos.hintModoPedido}>
+              Tocá las tarjetas de los productos que querés compartir. Los servicios no se incluyen.
+            </Text>
+            <TouchableOpacity
+              style={[estilos.btnPdfSeleccion, seleccionPdfIds.size === 0 && estilos.btnPdfSeleccionDisabled]}
+              onPress={compartirCatalogoPdfSeleccion}
+              disabled={generandoPdf || seleccionPdfIds.size === 0}
+              activeOpacity={0.88}
+              accessibilityRole="button"
+              accessibilityLabel={`Compartir ${seleccionPdfIds.size} productos elegidos`}
+            >
+              {generandoPdf ? (
+                <ActivityIndicator size="small" color={COLORES.blanco} />
+              ) : (
+                <Ionicons name="share-outline" size={20} color={COLORES.blanco} />
+              )}
+              <Text style={estilos.btnPdfSeleccionTxt}>
+                {generandoPdf
+                  ? 'Preparando…'
+                  : seleccionPdfIds.size === 0
+                    ? 'Compartir elegidos'
+                    : `Compartir (${seleccionPdfIds.size})`}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={salirModoSeleccionPdf}
+              disabled={generandoPdf}
+              style={estilos.btnCancelarSeleccionPdf}
+              hitSlop={8}
+            >
+              <Text style={estilos.btnCancelarSeleccionPdfTxt}>Cancelar selección</Text>
+            </TouchableOpacity>
+          </>
+        )}
 
         {modoArmarPedido && (
           <Text style={estilos.hintModoPedido}>
@@ -465,7 +666,7 @@ const CatalogoProductos: React.FC<Props> = ({ navigation }) => {
             </Text>
           </View>
         }
-        extraData={`${anchoVentana}-${modoArmarPedido}-${seleccionIds.size}`}
+        extraData={`${anchoVentana}-${modoArmarPedido}-${seleccionIds.size}-${modoSeleccionPdf}-${seleccionPdfIds.size}`}
       />
 
       {mostrarBarraCarrito && (
@@ -496,11 +697,12 @@ const CatalogoProductos: React.FC<Props> = ({ navigation }) => {
         </View>
       )}
 
-      {!modoArmarPedido && (
+      {!modoArmarPedido && !modoSeleccionPdf && (
         <>
           <FAB
             icono="cart-outline"
             onPress={() => {
+              salirModoSeleccionPdf();
               setModoArmarPedido(true);
               setSeleccionIds(new Set());
             }}
@@ -523,6 +725,16 @@ const CatalogoProductos: React.FC<Props> = ({ navigation }) => {
             setModoArmarPedido(false);
             setSeleccionIds(new Set());
           }}
+          estilo={{ bottom: offsetFab }}
+        />
+      )}
+
+      {modoSeleccionPdf && (
+        <FAB
+          icono="close"
+          color={COLORES.textoSecundario}
+          colorIcono={COLORES.blanco}
+          onPress={salirModoSeleccionPdf}
           estilo={{ bottom: offsetFab }}
         />
       )}
@@ -556,6 +768,79 @@ const estilos = StyleSheet.create({
     paddingVertical: 10,
     fontSize: FUENTE.tamanoBase,
     color: COLORES.texto,
+  },
+  filaBtnsPdf: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: ESPACIADO.sm,
+    marginBottom: ESPACIADO.xs,
+  },
+  btnCompartirCatalogo: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: COLORES.exito,
+    borderRadius: RADIO.md,
+    paddingVertical: ESPACIADO.sm,
+    paddingHorizontal: ESPACIADO.xs,
+  },
+  btnCompartirCatalogoTxt: {
+    color: COLORES.blanco,
+    fontSize: FUENTE.tamanoPequeno,
+    fontWeight: FUENTE.pesoBold,
+    textAlign: 'center',
+  },
+  btnSeleccionarPdf: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: COLORES.tarjeta,
+    borderRadius: RADIO.md,
+    borderWidth: 1.5,
+    borderColor: COLORES.primario,
+    paddingVertical: ESPACIADO.sm,
+    paddingHorizontal: ESPACIADO.xs,
+  },
+  btnSeleccionarPdfTxt: {
+    color: COLORES.primario,
+    fontSize: FUENTE.tamanoPequeno,
+    fontWeight: FUENTE.pesoBold,
+    textAlign: 'center',
+  },
+  btnPdfSeleccion: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: ESPACIADO.sm,
+    backgroundColor: COLORES.primario,
+    borderRadius: RADIO.lg,
+    paddingVertical: ESPACIADO.sm + 2,
+    paddingHorizontal: ESPACIADO.md,
+    marginBottom: ESPACIADO.xs,
+  },
+  btnPdfSeleccionDisabled: {
+    opacity: 0.45,
+  },
+  btnPdfSeleccionTxt: {
+    color: COLORES.blanco,
+    fontSize: FUENTE.tamanoPequeno,
+    fontWeight: FUENTE.pesoBold,
+  },
+  btnCancelarSeleccionPdf: {
+    alignSelf: 'center',
+    paddingVertical: ESPACIADO.xs,
+    marginBottom: ESPACIADO.xs,
+  },
+  btnCancelarSeleccionPdfTxt: {
+    fontSize: FUENTE.tamanoPequeno,
+    color: COLORES.textoSecundario,
+    fontWeight: FUENTE.pesoSemibold,
   },
   hintModoPedido: {
     fontSize: FUENTE.tamanoXs,
@@ -700,6 +985,16 @@ const estilos = StyleSheet.create({
     paddingBottom: ESPACIADO.xs,
     alignItems: 'center',
     gap: 4,
+  },
+  tarjetaCatTopConFoto: {
+    paddingTop: 0,
+    paddingBottom: 0,
+    height: 72,
+    overflow: 'hidden',
+  },
+  tarjetaCatFoto: {
+    width: '100%',
+    height: '100%',
   },
   tarjetaCatAvatar: {
     width: 36,

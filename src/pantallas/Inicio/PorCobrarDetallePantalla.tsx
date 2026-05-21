@@ -18,7 +18,6 @@ import { usePedidos } from '../../hooks/usePedidos';
 import { useAsesoriasPendientes } from '../../hooks/useAsesorias';
 import { useWallet } from '../../contexto/WalletContext';
 import { ventasPorCobrarPendientes, tituloVentaParaListado, esVentaSoloProveedorSinCliente } from '../../utilidades/pagosPendientes';
-import { asesoriasServicio } from '../../servicios/asesorias.servicio';
 import { COLORES } from '../../estilos/colores';
 import { FUENTE, ESPACIADO, RADIO, estilosComunes } from '../../estilos/tema';
 import { formatearMoneda, formatearFecha } from '../../utilidades/formato';
@@ -46,16 +45,8 @@ const PorCobrarDetallePantalla: React.FC<Props> = ({ navigation }) => {
     useAsesoriasPendientes();
 
   const cargar = useCallback(async () => {
-    const wid = walletSeleccionado?.id;
-    if (wid) {
-      try {
-        await asesoriasServicio.sincronizar(wid);
-      } catch {
-        // offline u error: no bloquear
-      }
-    }
     await Promise.all([cargarPedidos(), cargarAsesorias()]);
-  }, [walletSeleccionado, cargarPedidos, cargarAsesorias]);
+  }, [cargarPedidos, cargarAsesorias]);
 
   useLayoutEffect(() => {
     navigation.setOptions({

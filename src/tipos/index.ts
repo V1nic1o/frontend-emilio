@@ -122,6 +122,8 @@ export interface Producto {
   tipo: TipoItem;
   precioProveedor: number;
   precioEmpresa: number;
+  imagenUrl?: string | null;
+  imagenCloudinaryPublicId?: string | null;
   createdAt: string;
 }
 
@@ -131,6 +133,7 @@ export interface CrearProductoDto {
   tipo?: TipoItem;
   precioProveedor: number;
   precioEmpresa: number;
+  imagenBase64?: string;
 }
 
 export interface ActualizarProductoDto {
@@ -138,6 +141,8 @@ export interface ActualizarProductoDto {
   tipo?: TipoItem;
   precioProveedor?: number;
   precioEmpresa?: number;
+  imagenBase64?: string;
+  eliminarImagen?: boolean;
 }
 
 // ─── Persona ──────────────────────────────────────────────────────────────────
@@ -400,8 +405,9 @@ export interface MesEstadistica {
   mes: string;
   anio: number;
   ingresos: number;
-  /** IVA de ventas con impuesto en ese mes. */
+  /** IVA de ventas cobradas en el mes (prorrateado) + IVA de asesorías pagadas en el mes. */
   impuestosIva: number;
+  /** Costo de ventas reconocido con cobros del mes + pagos a proveedor en compras del mes. */
   costoVentas: number;
   ganancia: number;
   gastos: number;
@@ -417,9 +423,11 @@ export interface MesEstadistica {
 }
 
 export interface Estadisticas {
+  /** Suma histórica de ingresos cobrados (misma lógica que la suma de `porMes`). */
   totalIngresos: number;
-  /** Suma de IVA en ventas con impuesto asignado. */
+  /** IVA asociado a cobros acumulados (ventas + asesorías pagadas). */
   totalImpuestosIva: number;
+  /** Costo reconocido con caja (ventas + pagos en compras), acumulado. */
   totalCostoVentas: number;
   gananciaBruta: number;
   totalGastos: number;
@@ -444,4 +452,59 @@ export interface TotalesRangoEstadisticas {
 export interface EstadisticasRango {
   porMes: MesEstadistica[];
   totales: TotalesRangoEstadisticas;
+}
+
+/** GET /estadisticas/historial-meses — meses con movimiento (misma ventana que totales acumulados). */
+export interface HistorialMesContableItem {
+  anio: number;
+  /** 1–12 */
+  mes: number;
+  mesEtiqueta: string;
+  ingresos: number;
+  gastos: number;
+  gananciaNeta: number;
+}
+
+export interface LineaDesglosePedido {
+  tipo: 'venta' | 'compra';
+  pedidoId: number;
+  etiqueta: string;
+  ingreso: number;
+  costo: number;
+  iva: number;
+}
+
+export interface LineaDesgloseAsesoria {
+  cobroId: number;
+  personaNombre: string;
+  anio: number;
+  mes: number;
+  montoTotal: number;
+  montoIva: number;
+  fechaPago: string;
+}
+
+export interface LineaDesgloseGasto {
+  gastoId: number;
+  descripcion: string;
+  categoria: string | null;
+  monto: number;
+  fecha: string;
+}
+
+/** GET /estadisticas/desglose-mes — líneas trazables alineadas con el mes contable. */
+export interface DesgloseMes {
+  anio: number;
+  mes: number;
+  mesEtiqueta: string;
+  totales: {
+    ingresos: number;
+    costoVentas: number;
+    impuestosIva: number;
+    gastos: number;
+    gananciaNeta: number;
+  };
+  pedidos: LineaDesglosePedido[];
+  asesorias: LineaDesgloseAsesoria[];
+  gastos: LineaDesgloseGasto[];
 }

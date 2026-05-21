@@ -41,6 +41,11 @@ export function useAsesoriasPendientes() {
     if (!walletSeleccionado) return;
     setCargando(true);
     try {
+      try {
+        await asesoriasServicio.sincronizar(walletSeleccionado.id);
+      } catch {
+        // Sin red u offline: igual listamos pendientes ya guardados
+      }
       const list = await asesoriasServicio.listarPendientes(walletSeleccionado.id);
       setPendientes(list);
     } catch {

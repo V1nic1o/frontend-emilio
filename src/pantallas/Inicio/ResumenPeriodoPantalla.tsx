@@ -33,6 +33,7 @@ import {
 } from '../../utilidades/agrupacionMesFinanzas';
 import type { EstadisticasRango, Gasto, IngresoPersonal, MesEstadistica } from '../../tipos';
 import IndicadorWorkspaceHeader from '../../componentes/IndicadorWorkspaceHeader';
+import { DesgloseMesContenido } from '../../componentes/DesgloseMesContenido';
 import { CapaBlobsAtmosfera, estilosFondoAtmosfera } from '../../componentes/FondoAtmosfera';
 
 type PresetPeriodo = 'este_mes' | 'personalizado';
@@ -93,6 +94,11 @@ function ordenarMesesEstadisticas(meses: MesEstadistica[]): MesEstadistica[] {
     const ib = MESES_CORTO_RESUMEN.indexOf(b.mes as (typeof MESES_CORTO_RESUMEN)[number]);
     return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
   });
+}
+
+function mesCalendarioDesdeMesEstadistica(m: MesEstadistica): number {
+  const i = MESES_CORTO_RESUMEN.indexOf(m.mes as (typeof MESES_CORTO_RESUMEN)[number]);
+  return i >= 0 ? i + 1 : 1;
 }
 
 /**
@@ -286,6 +292,17 @@ const ResumenPeriodoPantalla: React.FC = () => {
     [rangoEmpresa?.porMes],
   );
 
+  const [mesExpandidoEmpresa, setMesExpandidoEmpresa] = useState<string | null>(null);
+
+  const syncDesgloseEmpresa = useMemo(
+    () => `${toIsoLocal(desde)}_${toIsoLocal(hasta)}_${finanzasEpoch}`,
+    [desde, hasta, finanzasEpoch],
+  );
+
+  useEffect(() => {
+    setMesExpandidoEmpresa(null);
+  }, [desde, hasta, preset]);
+
   const mesesPersonalRango = useMemo(
     () => construirMesesPersonalEnRango(ingresosP, gastosP, desde, hasta),
     [ingresosP, gastosP, desde, hasta],
@@ -472,7 +489,7 @@ const ResumenPeriodoPantalla: React.FC = () => {
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      title: 'Resumen por periodo',
+      title: esPersonal ? 'Resumen · personal' : 'Resumen · negocio',
       headerRight: () => <IndicadorWorkspaceHeader compacto variantePersonal={esPersonal} />,
     });
   }, [navigation, esPersonal]);
@@ -570,6 +587,12 @@ const ResumenPeriodoPantalla: React.FC = () => {
           </View>
         </View>
 
+        <Text style={estilos.pantallaKicker}>
+          {esPersonal
+            ? 'Elegí el período y mirá cómo entran y salen tus montos.'
+            : 'Elegí un mes o un rango y compará ingreso, gasto y resultado.'}
+        </Text>
+
         <View
           style={[
             estilos.modeSwitchOuter,
@@ -639,10 +662,12 @@ const ResumenPeriodoPantalla: React.FC = () => {
         {cargando && !esPersonal && !rangoEmpresa ? (
           <View style={estilos.cargando}>
             <ActivityIndicator size="large" color={accent} />
+            <Text style={estilos.cargandoTxt}>Cargando resumen…</Text>
           </View>
         ) : cargando && esPersonal && ingresosP.length === 0 && gastosP.length === 0 ? (
           <View style={estilos.cargando}>
             <ActivityIndicator size="large" color={accent} />
+            <Text style={estilos.cargandoTxt}>Cargando resumen…</Text>
           </View>
         ) : error ? (
           <Text style={estilos.error}>{error}</Text>
@@ -655,6 +680,11 @@ const ResumenPeriodoPantalla: React.FC = () => {
                 <Text style={estilos.heroAmount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.42}>
                   {kpiPrincipal < 0 ? '−' : ''}
                   {formatearMoneda(Math.abs(kpiPrincipal))}
+                </Text>
+                <Text style={estilos.heroMicro} numberOfLines={2}>
+                  {esPersonal
+                    ? 'Balance = ingresos personales − gastos del período.'
+                    : 'Resultado según cobros y gastos con fecha en el período elegido.'}
                 </Text>
                 <View style={estilos.heroPeriodFoot}>
                   <Ionicons name="calendar-outline" size={15} color="rgba(248,250,252,0.88)" />
@@ -672,7 +702,7 @@ const ResumenPeriodoPantalla: React.FC = () => {
                     <Ionicons name="trending-up" size={18} color="#15803D" />
                   </View>
                 </View>
-                <Text style={estilos.kpiLab}>{esPersonal ? 'Ingresos' : 'Cobrado'}</Text>
+                <Text style={estilos.kpiLab}>{esPersonal ? 'Ingresos' : 'Cobrado (caja)'}</Text>
                 <Text style={estilos.kpiNum}>
                   {formatearMoneda(esPersonal ? totalesP.ingresos : (totalesE?.ingresosCobrados ?? 0))}
                 </Text>
@@ -731,11 +761,92 @@ const ResumenPeriodoPantalla: React.FC = () => {
               )}
             </View>
 
+            {!esPersonal && mesesEmpresaOrd.length > 0 && walletSeleccionado ? (
+              <View style={estilos.desgloseShell}>
+                <View style={estilos.desgloseHead}>
+                  <View style={estilos.desgloseHeadRow}>
+                    <Ionicons name="list-circle-outline" size={20} color={accent} />
+                    <Text style={estilos.desgloseTitulo}>
+                      {mesesEmpresaOrd.length === 1 ? 'Movimientos del mes' : 'Movimientos por mes'}
+                    </Text>
+                  </View>
+                  <Text style={estilos.desgloseHint}>
+                    {mesesEmpresaOrd.length === 1
+                      ? 'Detalle trazable del mes incluido en el período.'
+                      : 'Tocá un mes para expandir el detalle trazable.'}
+                  </Text>
+                </View>
+                {mesesEmpresaOrd.length === 1 ? (
+                  <DesgloseMesContenido
+                    walletId={walletSeleccionado.id}
+                    anio={mesesEmpresaOrd[0].anio}
+                    mes={mesCalendarioDesdeMesEstadistica(mesesEmpresaOrd[0])}
+                    syncKey={syncDesgloseEmpresa}
+                    mostrarIntro
+                  />
+                ) : (
+                  mesesEmpresaOrd.map((m, idx) => {
+                    const mesNum = mesCalendarioDesdeMesEstadistica(m);
+                    const clave = `${m.anio}-${mesNum}`;
+                    const abierto = mesExpandidoEmpresa === clave;
+                    const pos = m.gananciaNeta >= 0;
+                    return (
+                      <View key={`${m.anio}-${m.mes}-${idx}`}>
+                        <TouchableOpacity
+                          style={[estilos.desgloseFila, idx === 0 && estilos.desgloseFilaPrimera]}
+                          onPress={() => setMesExpandidoEmpresa(abierto ? null : clave)}
+                          activeOpacity={0.85}
+                        >
+                          <View style={estilos.desgloseFilaIzq}>
+                            <Text style={estilos.desgloseFilaMes}>
+                              {m.mes} {m.anio}
+                            </Text>
+                            <Text style={estilos.desgloseFilaSub}>
+                              Ingresos {formatearMoneda(m.ingresos)} · Gastos {formatearMoneda(m.gastos)}
+                            </Text>
+                          </View>
+                          <View style={estilos.desgloseFilaDer}>
+                            <Text style={[estilos.desgloseFilaNeta, { color: pos ? COLORES.pagado : COLORES.pendiente }]}>
+                              {pos ? '' : '−'}
+                              {formatearMoneda(Math.abs(m.gananciaNeta))}
+                            </Text>
+                            <Ionicons
+                              name={abierto ? 'chevron-up' : 'chevron-down'}
+                              size={18}
+                              color={COLORES.textoSecundario}
+                            />
+                          </View>
+                        </TouchableOpacity>
+                        {abierto ? (
+                          <View style={estilos.desgloseExpandBloque}>
+                            <DesgloseMesContenido
+                              walletId={walletSeleccionado.id}
+                              anio={m.anio}
+                              mes={mesNum}
+                              syncKey={`${syncDesgloseEmpresa}-${clave}`}
+                              mostrarIntro
+                            />
+                          </View>
+                        ) : null}
+                      </View>
+                    );
+                  })
+                )}
+              </View>
+            ) : null}
+
             <View style={estilos.graficoShell}>
               <View style={estilos.graficoShellHead}>
-                <View style={estilos.graficoTituloRow}>
-                  <Ionicons name="pie-chart" size={18} color={accent} />
-                  <Text style={estilos.graficoTitulo}>Composición</Text>
+                <View style={estilos.graficoTituloCol}>
+                  <View style={estilos.graficoTituloRow}>
+                    <Ionicons name="pie-chart" size={18} color={accent} />
+                    <Text style={estilos.graficoTitulo}>Composición</Text>
+                  </View>
+                  <Text style={estilos.graficoSubtitulo}>
+                    {esPersonal
+                      ? 'Cómo se reparten ingresos y gastos del período.'
+                      : 'Ingresos cobrados vs gastos operativos en el período.'}
+                  </Text>
                 </View>
               </View>
               {hayComposicion && pieSlices.length > 0 ? (
@@ -775,16 +886,23 @@ const ResumenPeriodoPantalla: React.FC = () => {
                   </View>
                 </>
               ) : (
-                <Text style={estilos.sinDatosGraf}>Sin movimientos</Text>
+                <Text style={estilos.sinDatosGraf}>Sin datos para graficar en este período.</Text>
               )}
             </View>
 
             {haySerie ? (
               <View style={estilos.graficoShell}>
                   <View style={estilos.graficoShellHead}>
-                  <View style={estilos.graficoTituloRow}>
-                    <Ionicons name="sparkles" size={18} color={accent} />
-                    <Text style={estilos.graficoTitulo}>Serie</Text>
+                  <View style={estilos.graficoTituloCol}>
+                    <View style={estilos.graficoTituloRow}>
+                      <Ionicons name="sparkles" size={18} color={accent} />
+                      <Text style={estilos.graficoTitulo}>Serie</Text>
+                    </View>
+                    <Text style={estilos.graficoSubtitulo}>
+                      {esPersonal
+                        ? 'Evolución del balance mes a mes.'
+                        : 'Evolución de ingresos, gastos y ganancia neta por mes.'}
+                    </Text>
                   </View>
                   <View style={estilos.toggleLightRow}>
                     <TouchableOpacity
@@ -1127,6 +1245,13 @@ const estilos = StyleSheet.create({
   },
   periodChipTxt: { fontSize: 12, fontWeight: FUENTE.pesoBold, letterSpacing: 0.2 },
 
+  pantallaKicker: {
+    fontSize: FUENTE.tamanoXs,
+    color: COLORES.textoSecundario,
+    lineHeight: 17,
+    marginBottom: ESPACIADO.md,
+  },
+
   modeSwitchOuter: {
     flexDirection: 'row',
     gap: 10,
@@ -1163,7 +1288,8 @@ const estilos = StyleSheet.create({
     fontWeight: FUENTE.pesoBold,
   },
 
-  cargando: { paddingVertical: ESPACIADO.xl, alignItems: 'center' },
+  cargando: { paddingVertical: ESPACIADO.xl, alignItems: 'center', gap: ESPACIADO.sm },
+  cargandoTxt: { fontSize: FUENTE.tamanoPequeno, color: COLORES.textoSecundario, fontWeight: FUENTE.pesoSemibold },
   error: { color: COLORES.peligro, fontSize: FUENTE.tamanoBase, textAlign: 'center' },
 
   heroWrap: { marginBottom: ESPACIADO.lg },
@@ -1202,6 +1328,13 @@ const estilos = StyleSheet.create({
     fontWeight: FUENTE.pesoBold,
     color: COLORES.blanco,
     letterSpacing: -1,
+  },
+  heroMicro: {
+    marginTop: ESPACIADO.sm,
+    fontSize: FUENTE.tamanoXs,
+    fontWeight: FUENTE.pesoSemibold,
+    color: 'rgba(248,250,252,0.86)',
+    lineHeight: 17,
   },
   heroPeriodFoot: {
     flexDirection: 'row',
@@ -1310,11 +1443,17 @@ const estilos = StyleSheet.create({
     gap: ESPACIADO.sm,
   },
   graficoTituloRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  graficoTituloCol: { flex: 1, minWidth: 0, gap: 4 },
   graficoTitulo: {
     fontSize: FUENTE.tamanoMedio,
     fontWeight: FUENTE.pesoBold,
     color: COLORES.texto,
     letterSpacing: -0.2,
+  },
+  graficoSubtitulo: {
+    fontSize: FUENTE.tamanoXs,
+    color: COLORES.textoSecundario,
+    lineHeight: 16,
   },
   toggleLightRow: {
     flexDirection: 'row',
@@ -1511,6 +1650,46 @@ const estilos = StyleSheet.create({
   modalBtnSecTxt: { fontSize: FUENTE.tamanoBase, color: COLORES.textoSecundario, fontWeight: FUENTE.pesoBold },
   modalBtnPri: { flex: 1, paddingVertical: 14, alignItems: 'center', borderRadius: RADIO.lg },
   modalBtnPriTxt: { fontSize: FUENTE.tamanoBase, color: COLORES.blanco, fontWeight: FUENTE.pesoBold },
+
+  desgloseShell: {
+    marginBottom: ESPACIADO.lg,
+    backgroundColor: COLORES.tarjeta,
+    borderRadius: RADIO.xl,
+    borderWidth: 1,
+    borderColor: COLORES.borde,
+    padding: ESPACIADO.md,
+  },
+  desgloseHead: { marginBottom: ESPACIADO.sm },
+  desgloseHeadRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  desgloseTitulo: { fontSize: FUENTE.tamanoMedio, fontWeight: FUENTE.pesoBold, color: COLORES.texto, flex: 1 },
+  desgloseHint: {
+    fontSize: FUENTE.tamanoXs,
+    color: COLORES.textoSecundario,
+    lineHeight: 16,
+    marginTop: ESPACIADO.xs,
+    paddingLeft: 28,
+  },
+  desgloseFila: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: ESPACIADO.sm,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: COLORES.borde,
+  },
+  desgloseFilaPrimera: { borderTopWidth: 0 },
+  desgloseFilaIzq: { flex: 1, minWidth: 0 },
+  desgloseFilaMes: { fontSize: FUENTE.tamanoPequeno, fontWeight: FUENTE.pesoBold, color: COLORES.texto },
+  desgloseFilaSub: { fontSize: FUENTE.tamanoXs, color: COLORES.textoSecundario, marginTop: 2 },
+  desgloseFilaDer: { alignItems: 'flex-end', gap: 2 },
+  desgloseFilaNeta: { fontSize: FUENTE.tamanoPequeno, fontWeight: FUENTE.pesoBold },
+  desgloseExpandBloque: {
+    paddingTop: ESPACIADO.sm,
+    paddingBottom: ESPACIADO.xs,
+    borderTopWidth: 1,
+    borderTopColor: COLORES.borde,
+  },
 });
 
 export default ResumenPeriodoPantalla;

@@ -1,12 +1,7 @@
 import { Pedido } from '../tipos';
+import { esVentaSoloProveedorSinCliente, modoPedidoNegocio } from './modoPedido';
 
-/**
- * Venta sin cliente en la app: solo `proveedorId` (flujo «Venta proveedor»).
- * No confundir con venta a cliente con proveedor de costo opcional.
- */
-export function esVentaSoloProveedorSinCliente(p: Pick<Pedido, 'tipo' | 'personaId' | 'persona' | 'proveedorId'>): boolean {
-  return p.tipo === 'venta' && (p.personaId == null || p.personaId === undefined) && !!p.proveedorId;
-}
+export { esVentaSoloProveedorSinCliente };
 
 /** Título en listas «por cobrar» cuando no hay persona cliente. */
 export function tituloVentaParaListado(p: Pedido): string {
@@ -17,24 +12,40 @@ export function tituloVentaParaListado(p: Pedido): string {
   return 'Venta sin cliente';
 }
 
+/**
+ * Nombre del cliente / contacto para una segunda línea bajo el título del pedido.
+ * Evita repetir el mismo texto que `tituloVentaParaListado` cuando ya es el único rotulo.
+ */
+export function nombreClienteBajoTituloPedido(p: Pedido, tituloListado: string): string | null {
+  const t = tituloListado.trim();
+  const personaN = p.persona?.nombre?.trim();
+  if (personaN) {
+    return personaN === t ? null : personaN;
+  }
+  if (p.tipo === 'venta' && !p.persona) {
+    const leg = p.nombreReferencia?.trim() || p.proveedor?.nombre?.trim() || 'Sin cliente';
+    return leg === t ? null : leg;
+  }
+  return null;
+}
+
 /** Misma lógica que en Inicio: pedidos que aparecen en «Requieren pago» / «Sin saldar». */
 export function pedidosRequierenAccionInicio(pedidos: Pedido[]): Pedido[] {
   return pedidos.filter(
     (p) =>
       p.resumen?.estado === 'pendiente' ||
       p.resumen?.estado === 'parcial' ||
-      (p.tipo === 'venta' &&
+      (modoPedidoNegocio(p) === 'venta_cliente' &&
         !!p.proveedorId &&
-        !esVentaSoloProveedorSinCliente(p) &&
         (p.resumen?.estadoProveedor === 'pendiente' || p.resumen?.estadoProveedor === 'parcial')),
   );
 }
 
-/** Obligaciones de pago (compras al proveedor + pago proveedor en ventas). */
+/** Obligaciones de pago (pago proveedor en ventas cliente con costo). */
 export type FilaPorPagar = {
   key: string;
   pedidoId: number;
-  modo: 'compra_proveedor' | 'proveedor_en_venta';
+  modo: 'proveedor_en_venta';
   monto: number;
   nombreContexto: string;
   detalleLinea: string;
@@ -44,21 +55,7 @@ export type FilaPorPagar = {
 export function construirFilasPorPagar(pedidos: Pedido[]): FilaPorPagar[] {
   const out: FilaPorPagar[] = [];
   for (const p of pedidos) {
-    if (p.tipo === 'compra') {
-      const monto = p.resumen?.saldoPendiente ?? 0;
-      if (monto > 0) {
-        out.push({
-          key: `${p.id}-compra`,
-          pedidoId: p.id,
-          modo: 'compra_proveedor',
-          monto,
-          nombreContexto: p.persona?.nombre ?? 'Proveedor',
-          detalleLinea: 'Compra — pendiente con proveedor',
-          fecha: p.fecha,
-        });
-      }
-    }
-    if (p.tipo === 'venta' && p.proveedorId && !esVentaSoloProveedorSinCliente(p)) {
+    if (modoPedidoNegocio(p) === 'venta_cliente' && p.proveedorId) {
       const monto = p.resumen?.saldoProveedor ?? 0;
       if (monto > 0) {
         out.push({

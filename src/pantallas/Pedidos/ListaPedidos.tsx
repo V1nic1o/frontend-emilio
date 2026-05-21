@@ -24,12 +24,11 @@ import { formatearMoneda, formatearFecha, etiquetaPedido, subtituloNumeroPedido 
 import { esVentaSoloProveedorSinCliente } from '../../utilidades/pagosPendientes';
 
 type Props = NativeStackScreenProps<PedidosStackParamList, 'ListaPedidos'>;
-type Filtro = 'todos' | 'ventas' | 'compras' | 'pendientes';
+type Filtro = 'todos' | 'ventas' | 'pendientes';
 
 const FILTROS: { id: Filtro; etiqueta: string; icono: React.ComponentProps<typeof Ionicons>['name'] }[] = [
   { id: 'todos', etiqueta: 'Todos', icono: 'apps-outline' },
   { id: 'ventas', etiqueta: 'Ventas', icono: 'arrow-up-circle-outline' },
-  { id: 'compras', etiqueta: 'Compras', icono: 'arrow-down-circle-outline' },
   { id: 'pendientes', etiqueta: 'Pendientes', icono: 'time-outline' },
 ];
 
@@ -67,7 +66,6 @@ const ListaPedidos: React.FC<Props> = ({ navigation }) => {
   const pedidosFiltrados = useMemo(() => {
     switch (filtroActivo) {
       case 'ventas': return pedidos.filter((p) => p.tipo === 'venta');
-      case 'compras': return pedidos.filter((p) => p.tipo === 'compra');
       case 'pendientes': return pedidos.filter(
         (p) => p.resumen?.estado === 'pendiente' || p.resumen?.estado === 'parcial'
       );
@@ -78,7 +76,6 @@ const ListaPedidos: React.FC<Props> = ({ navigation }) => {
   const conteos = useMemo(() => ({
     todos: pedidos.length,
     ventas: pedidos.filter((p) => p.tipo === 'venta').length,
-    compras: pedidos.filter((p) => p.tipo === 'compra').length,
     pendientes: pedidos.filter((p) => p.resumen?.estado === 'pendiente' || p.resumen?.estado === 'parcial').length,
   }), [pedidos]);
 

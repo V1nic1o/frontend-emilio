@@ -67,8 +67,8 @@ const OPCIONES_TIPO_ITEM: { valor: TipoItem; etiqueta: string }[] = [
   { valor: 'servicio', etiqueta: 'Servicio' },
 ];
 
-/** Tres caminos de creación; el API sigue siendo `tipo` compra | venta. */
-type ModoCreacionPedido = 'compra' | 'venta_cliente' | 'venta_proveedor';
+/** Dos caminos de creación; el API usa `tipo: venta` (compras deshabilitadas en servidor). */
+type ModoCreacionPedido = 'venta_cliente' | 'venta_proveedor';
 
 type ConfigModoCreacion = {
   valor: ModoCreacionPedido;
@@ -80,14 +80,6 @@ type ConfigModoCreacion = {
 };
 
 const MODOS_CREACION: ConfigModoCreacion[] = [
-  {
-    valor: 'compra',
-    tituloCorto: 'Compra',
-    ayuda: 'Registrás una compra a un proveedor; los pagos van contra este pedido.',
-    icono: 'arrow-down-circle',
-    color: COLORES.morado,
-    fondo: COLORES.moradoClaro,
-  },
   {
     valor: 'venta_cliente',
     tituloCorto: 'Venta\ncliente',
@@ -106,7 +98,7 @@ const MODOS_CREACION: ConfigModoCreacion[] = [
   },
 ];
 
-/** Selector compacto: tres píldoras en fila + una línea de ayuda según la opción activa. */
+/** Selector compacto: dos píldoras en fila + una línea de ayuda según la opción activa. */
 const SelectorModoCreacion: React.FC<{ valor: ModoCreacionPedido; onChange: (v: ModoCreacionPedido) => void }> = ({ valor, onChange }) => {
   const ayudaActiva = MODOS_CREACION.find((m) => m.valor === valor)?.ayuda ?? '';
   return (
@@ -186,7 +178,7 @@ const CrearPedido: React.FC<Props> = ({ navigation, route }) => {
   const { consumirLineasSiTransferenciaPendiente } = useCarritoCatalogoPedido();
 
   const [modoCreacion, setModoCreacion] = useState<ModoCreacionPedido>('venta_cliente');
-  const tipoPedido: TipoPedido = modoCreacion === 'compra' ? 'compra' : 'venta';
+  const tipoPedido: TipoPedido = 'venta';
   const [personaSeleccionada, setPersonaSeleccionada] = useState<Persona | null>(null);
   const [proveedorSeleccionado, setProveedorSeleccionado] = useState<Persona | null>(null);
   const [modalPersona, setModalPersona] = useState(false);
@@ -249,8 +241,13 @@ const CrearPedido: React.FC<Props> = ({ navigation, route }) => {
     if (!p) return;
     presetInicialDesdeRutaListoRef.current = true;
     setPersonaSeleccionada(p);
-    setModoCreacion(p.tipo === 'cliente' ? 'venta_cliente' : 'compra');
-    if (p.tipo === 'proveedor') setProveedorSeleccionado(null);
+    if (p.tipo === 'cliente') {
+      setModoCreacion('venta_cliente');
+    } else {
+      setModoCreacion('venta_proveedor');
+      setProveedorSeleccionado(p);
+      setPersonaSeleccionada(null);
+    }
   }, [route.params?.personaId, personas]);
 
   useFocusEffect(
@@ -272,11 +269,6 @@ const CrearPedido: React.FC<Props> = ({ navigation, route }) => {
   );
 
   useEffect(() => {
-    if (modoCreacion === 'compra') {
-      setProveedorSeleccionado(null);
-      if (personaSeleccionada && personaSeleccionada.tipo !== 'proveedor') setPersonaSeleccionada(null);
-      return;
-    }
     if (modoCreacion === 'venta_proveedor') {
       // Permitir cliente + proveedor: solo limpiar si la persona NO es cliente
       if (personaSeleccionada && personaSeleccionada.tipo !== 'cliente') setPersonaSeleccionada(null);
@@ -364,12 +356,7 @@ const CrearPedido: React.FC<Props> = ({ navigation, route }) => {
   }, [productos, seleccionados]);
 
   const validar = (): boolean => {
-    if (modoCreacion === 'compra') {
-      if (!personaSeleccionada) {
-        mostrarAlerta('Falta el proveedor', 'Seleccioná a quién le comprás.');
-        return false;
-      }
-    } else if (modoCreacion === 'venta_cliente') {
+    if (modoCreacion === 'venta_cliente') {
       if (!personaSeleccionada) {
         mostrarAlerta('Falta el cliente', 'Seleccioná el cliente de esta venta.');
         return false;
@@ -428,10 +415,7 @@ const CrearPedido: React.FC<Props> = ({ navigation, route }) => {
     }
   };
 
-  // Modal persona: en 'compra' muestra proveedores, en ventas muestra clientes
-  const personasModal = personas.filter((p) =>
-    modoCreacion === 'compra' ? p.tipo === 'proveedor' : p.tipo === 'cliente',
-  );
+  const personasModal = personas.filter((p) => p.tipo === 'cliente');
   const proveedoresDisponibles = personas.filter((p) => p.tipo === 'proveedor');
 
   return (
@@ -468,43 +452,6 @@ const CrearPedido: React.FC<Props> = ({ navigation, route }) => {
           ) : null}
 
           <SelectorModoCreacion valor={modoCreacion} onChange={setModoCreacion} />
-
-          {/* Compra: una sola sección — proveedor principal */}
-          {modoCreacion === 'compra' && (
-            <View style={estilosSeccion.tarjeta}>
-              <Text style={estilosSeccion.titulo}>Proveedor</Text>
-              <Text style={estilosSeccion.descripcion}>Persona a la que le comprás; los pagos del pedido van contra este contacto.</Text>
-              <Text style={estilos.etiqueta}>Elegí proveedor</Text>
-              <TouchableOpacity
-                style={[estilos.selectorPersona, !personaSeleccionada && estilos.selectorPersonaVacio, { marginBottom: 0 }]}
-                onPress={() => setModalPersona(true)}
-                activeOpacity={0.85}
-              >
-                {personaSeleccionada ? (
-                  <View style={estilos.personaSeleccionada}>
-                    <View style={[estilos.avatarPequeno, { backgroundColor: COLORES.proveedorClaro }]}>
-                      <Text style={[estilos.avatarLetra, { color: COLORES.proveedor }]}>
-                        {personaSeleccionada.nombre.charAt(0).toUpperCase()}
-                      </Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={estilos.personaNombre}>{personaSeleccionada.nombre}</Text>
-                      <Text style={estilos.personaTipo}>Proveedor</Text>
-                    </View>
-                    <View style={estilos.cambiarBtn}><Text style={estilos.cambiarTexto}>Cambiar</Text></View>
-                  </View>
-                ) : (
-                  <View style={estilos.personaPlaceholder}>
-                    <View style={estilos.placeholderIcon}>
-                      <Ionicons name="business-outline" size={20} color={COLORES.textoDeshabilitado} />
-                    </View>
-                    <Text style={estilos.placeholderTexto}>Seleccioná el proveedor</Text>
-                    <Ionicons name="chevron-forward" size={18} color={COLORES.textoDeshabilitado} />
-                  </View>
-                )}
-              </TouchableOpacity>
-            </View>
-          )}
 
           {/* Venta a cliente: cliente + proveedor de costo opcional */}
           {modoCreacion === 'venta_cliente' && (
@@ -796,17 +743,7 @@ const CrearPedido: React.FC<Props> = ({ navigation, route }) => {
 
           <View style={estilosSeccion.tarjeta}>
             <Text style={estilosSeccion.titulo}>Vista previa</Text>
-            {tipoPedido === 'compra' ? (
-              <>
-                <Text style={estilosSeccion.descripcion}>
-                  Suma de cantidad × precio costo (lo que usará el pedido para el saldo de compra).
-                </Text>
-                <View style={estilosPreview.filaTotal}>
-                  <Text style={estilosPreview.etiquetaStrong}>Total compra</Text>
-                  <Text style={estilosPreview.valorStrong}>{formatearMoneda(vistaPreviaTotales.subtotalCompra)}</Text>
-                </View>
-              </>
-            ) : vistaPreviaTotales.pctImpuesto != null ? (
+            {vistaPreviaTotales.pctImpuesto != null ? (
               <>
                 <Text style={estilosSeccion.descripcion}>
                   Mismo criterio que al guardar: IVA sobre el subtotal de venta de los ítems.
@@ -850,11 +787,9 @@ const CrearPedido: React.FC<Props> = ({ navigation, route }) => {
         <SafeAreaView style={{ flex: 1, backgroundColor: COLORES.fondo }}>
           <View style={estilos.modalHeader}>
             <View>
-              <Text style={estilos.modalTitulo}>
-                {modoCreacion === 'compra' ? 'Seleccioná el proveedor' : 'Seleccioná el cliente'}
-              </Text>
+              <Text style={estilos.modalTitulo}>Seleccioná el cliente</Text>
               <Text style={estilos.modalSubtitulo}>
-                {personasModal.length} {modoCreacion === 'compra' ? 'proveedores' : 'clientes'} disponibles
+                {personasModal.length} clientes disponibles
               </Text>
             </View>
             <TouchableOpacity onPress={() => setModalPersona(false)} style={estilos.modalCerrarBtn}>
@@ -865,7 +800,7 @@ const CrearPedido: React.FC<Props> = ({ navigation, route }) => {
             data={personasModal}
             keyExtractor={(item) => String(item.id)}
             ListHeaderComponent={
-              modoCreacion !== 'compra' && personaSeleccionada ? (
+              personaSeleccionada ? (
                 <TouchableOpacity
                   style={{ paddingVertical: ESPACIADO.md, marginBottom: ESPACIADO.xs }}
                   onPress={() => {

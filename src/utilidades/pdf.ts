@@ -1,9 +1,10 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { Platform } from 'react-native';
-import { AsesoriaCobro, Pedido } from '../tipos';
+import { AsesoriaCobro, Pedido, Producto, TipoItem } from '../tipos';
 import { PerfilEmpresa } from '../servicios/perfil.servicio';
 import { formatearFecha, formatearMoneda } from './formato';
+import { esVentaSoloProveedorSinCliente } from './modoPedido';
 
 export type TipoPDF = 'cliente' | 'proveedor' | 'completo' | 'cotizacion';
 
@@ -197,12 +198,11 @@ const metaNitPersonaHtml = (nit?: string | null): string => {
   return `<p class="meta">NIT: <strong>${escaparHtml(t)}</strong></p>`;
 };
 
-const tituloPedidoPdf = (pedido: Pedido, sufijo: string): string => {
+/** Título del documento: solo referencia o número de pedido, sin rol ni sufijos. */
+const tituloDocumentoPedido = (pedido: Pedido): string => {
   const ref = pedido.nombreReferencia?.trim();
-  if (ref) {
-    return `${escaparHtml(ref)} — ${sufijo}`;
-  }
-  return `Pedido #${pedido.id} — ${sufijo}`;
+  if (ref) return escaparHtml(ref);
+  return `Pedido #${pedido.id}`;
 };
 
 const esUrlHttpsSeguraParaImg = (url: string): boolean => {
@@ -242,7 +242,7 @@ const debeMostrarCabeceraEmpresaPdf = (perfil?: PerfilEmpresa | null): boolean =
   );
 };
 
-/** Cabecera compacta (logo o inicial + nombre + NIT) para PDFs cliente / proveedor / completo. */
+/** Cabecera compacta (logo o inicial + nombre + NIT) para PDFs de pedido. */
 const cabeceraEmpresaCompactaHtml = (perfil?: PerfilEmpresa | null): string => {
   if (!debeMostrarCabeceraEmpresaPdf(perfil)) return '';
   const logoSrc = resolverSrcLogoPdf(perfil);
@@ -257,6 +257,9 @@ const cabeceraEmpresaCompactaHtml = (perfil?: PerfilEmpresa | null): string => {
     </div>
   </div>`;
 };
+
+const esVentaProveedorConClienteEnPdf = (p: Pedido): boolean =>
+  p.tipo === 'venta' && !!p.proveedorId && !!p.persona && p.esIntermediacion === true;
 
 // ─── PDF Cliente ──────────────────────────────────────────────────────────────
 
@@ -273,11 +276,17 @@ const generarHTMLCliente = (pedido: Pedido, perfil?: PerfilEmpresa | null): stri
   const refSaldo = resumen?.referenciaSaldoCliente ?? total;
   const saldo = resumen?.saldoPendiente ?? Math.max(0, refSaldo - totalPagado);
   const colorSaldo = saldo > 0 ? '#DC2626' : '#16A34A';
-  const esVentaIntermediacion = pedido.tipo === 'venta' && !pedido.persona && !!pedido.proveedorId;
+  /** Misma regla que el detalle del pedido: venta con proveedor y sin persona en la app (legado). */
+  const esLegacySoloProveedor = esVentaSoloProveedorSinCliente(pedido);
+  const nombreLadoClientePdf = pedido.persona?.nombre?.trim()
+    ? pedido.persona.nombre
+    : esLegacySoloProveedor
+      ? pedido.nombreReferencia?.trim() || pedido.proveedor?.nombre || '—'
+      : '—';
   const filasIva =
     montoIva > 0 && pedido.impuesto != null
       ? `<tr><td colspan="3" class="right" style="color:#64748B;">Subtotal ítems</td><td class="right">${formatearMoneda(subtotal)}</td></tr>
-    <tr><td colspan="3" class="right" style="color:#64748B;">IVA (${pedido.impuesto}%)</td><td class="right">${formatearMoneda(montoIva)}</td></tr>`
+    <tr><td colspan="3" class="right" style="color:#64748B;">IVA ${pedido.impuesto}%</td><td class="right">${formatearMoneda(montoIva)}</td></tr>`
       : '';
 
   const filasItems = (pedido.items ?? []).map((item) => {
@@ -291,30 +300,46 @@ const generarHTMLCliente = (pedido: Pedido, perfil?: PerfilEmpresa | null): stri
   }).join('');
 
   const filasPagos = (pedido.pagos ?? []).length === 0
-    ? '<p style="color:#64748B;font-size:13px;">Sin pagos registrados.</p>'
+    ? `<table><thead><tr><th>Fecha</th><th class="right">Monto</th></tr></thead><tbody><tr><td colspan="2" class="center" style="color:#64748B;">—</td></tr></tbody></table>`
     : `<table><thead><tr><th>Fecha</th><th class="right">Monto</th></tr></thead><tbody>
         ${(pedido.pagos ?? []).map((p) => `<tr><td>${formatearFecha(p.fecha)}</td><td class="right">${formatearMoneda(p.monto)}</td></tr>`).join('')}
       </tbody></table>`;
 
+  const filasIngresoClienteProveedor = (pedido.pagosProveedor ?? [])
+    .filter((p) => p.tipo === 'ingreso_cliente_a_proveedor')
+    .map((p) => `<tr><td>${formatearFecha(p.fecha)}</td><td class="right">${formatearMoneda(p.monto)}</td></tr>`)
+    .join('');
+
+  const bloqueIngresoClienteProveedor = esLegacySoloProveedor
+    ? filasIngresoClienteProveedor
+      ? `<h2>Abonos directos</h2>
+        <table><thead><tr><th>Fecha</th><th class="right">Monto</th></tr></thead><tbody>${filasIngresoClienteProveedor}</tbody></table>`
+      : ''
+    : '';
+
+  const lineaContacto =
+    nombreLadoClientePdf !== '—'
+      ? `<p class="meta"><strong>${escaparHtml(nombreLadoClientePdf)}</strong></p>`
+      : '';
+
   return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"/>
   <style>${CSS_BASE} h1 { color:#2563EB; }</style></head><body>
   ${cabeceraEmpresaCompactaHtml(perfil)}
-  <h1>${tituloPedidoPdf(pedido, 'Cliente')}</h1>
+  <h1>${tituloDocumentoPedido(pedido)}</h1>
   <p class="meta">Fecha: ${formatearFecha(pedido.fecha)}</p>
-  <p class="meta">Cliente: <strong>${pedido.persona?.nombre?.trim() ? pedido.persona.nombre : esVentaIntermediacion ? (pedido.proveedor?.nombre ?? 'Proveedor') : '-'}</strong> <span class="badge cliente" style="margin-left:6px;">${esVentaIntermediacion ? 'Venta proveedor' : 'Cliente'}</span></p>
+  ${lineaContacto}
   ${metaNitPersonaHtml(pedido.persona?.nit)}
-  <p class="meta">Estado: ${esVentaIntermediacion ? estadoBadgeLadoCobro(resumen?.estado) : estadoBadge(resumen?.estado)}</p>
   <h2>Ítems</h2>
   <table><thead><tr><th>Nombre</th><th class="center">Cant.</th><th class="right">Precio</th><th class="right">Subtotal</th></tr></thead>
   <tbody>${filasItems}</tbody>
   <tfoot>
     ${filasIva}
-    <tr class="total-row"><td colspan="3" class="right">${montoIva > 0 ? 'Total a cobrar' : 'Total'}</td><td class="right">${formatearMoneda(total)}</td></tr>
-    <tr><td colspan="3" class="right" style="color:#64748B;">${esVentaIntermediacion ? 'Total repartido' : 'Total pagado'}</td><td class="right" style="color:#16A34A;">${formatearMoneda(totalPagado)}</td></tr>
-    <tr><td colspan="3" class="right" style="font-weight:700;">${esVentaIntermediacion ? 'Pendiente (margen)' : 'Saldo pendiente'}</td><td class="right" style="font-weight:700;color:${colorSaldo};">${formatearMoneda(saldo)}</td></tr>
+    <tr class="total-row"><td colspan="3" class="right">Total</td><td class="right">${formatearMoneda(total)}</td></tr>
+    <tr><td colspan="3" class="right" style="color:#64748B;">Abonado</td><td class="right" style="color:#16A34A;">${formatearMoneda(totalPagado)}</td></tr>
+    <tr><td colspan="3" class="right" style="font-weight:700;">Pendiente</td><td class="right" style="font-weight:700;color:${colorSaldo};">${formatearMoneda(saldo)}</td></tr>
   </tfoot></table>
-  <h2>${esVentaIntermediacion ? 'Repartos recibidos' : 'Pagos recibidos'}</h2>${filasPagos}
-  <p class="footer">Generado el ${new Date().toLocaleDateString('es-GT')}</p>
+  <h2>${esLegacySoloProveedor ? 'Abonos al margen' : 'Abonos'}</h2>${filasPagos}
+  ${bloqueIngresoClienteProveedor}
   </body></html>`;
 };
 
@@ -327,17 +352,23 @@ const generarHTMLProveedor = (pedido: Pedido, perfil?: PerfilEmpresa | null): st
   const saldoCostoApp = Math.max(0, totalCompra - totalPagadoProveedorResumen);
   const colorSaldo = saldoCostoApp > 0 ? '#DC2626' : '#16A34A';
 
+  const esInterClientePdf = esVentaProveedorConClienteEnPdf(pedido);
+  const totalVentaPdf = resumen?.totalVenta ?? 0;
+  const margenEmpresaPdf = esInterClientePdf ? totalVentaPdf - totalCompra : 0;
+  const pendienteMargenPdf = esInterClientePdf
+    ? Math.max(0, margenEmpresaPdf - totalPagadoProveedorResumen)
+    : 0;
+  const colorPendienteMargen = pendienteMargenPdf > 0.005 ? '#DC2626' : '#16A34A';
+
   const listaProv = pedido.pagosProveedor ?? [];
-  const listaLiquidaCosto = listaProv.filter((p) => p.tipo !== 'ingreso_cliente_a_proveedor');
-  const abonosCosto = listaLiquidaCosto.filter((p) => (p.tipo ?? 'pago') === 'pago').reduce((a, p) => a + p.monto, 0);
-  const cobrosCosto = listaLiquidaCosto.filter((p) => p.tipo === 'cobro').reduce((a, p) => a + p.monto, 0);
 
   const totalIngresosClientes = listaProv
     .filter((p) => p.tipo === 'ingreso_cliente_a_proveedor')
     .reduce((a, p) => a + p.monto, 0);
   const totalRepartosIntermediario = (pedido.pagos ?? []).reduce((a, p) => a + p.monto, 0);
 
-  const esVentaIntermediacionPdf = pedido.tipo === 'venta' && !pedido.persona && !!pedido.proveedorId;
+  /** Solo legado sin cliente en app: repartos en `pagos` + ingresos directos al proveedor. */
+  const esLegacySoloProveedorPdf = esVentaSoloProveedorSinCliente(pedido);
 
   const filasItems = (pedido.items ?? []).map((item) => {
     const subtotal = item.cantidad * item.precioCompra;
@@ -350,23 +381,27 @@ const generarHTMLProveedor = (pedido: Pedido, perfil?: PerfilEmpresa | null): st
   }).join('');
 
   const filasPagos = listaProv.length === 0
-    ? '<p style="color:#64748B;font-size:13px;">Sin movimientos registrados.</p>'
-    : `<table><thead><tr><th>Fecha</th><th>Tipo</th><th class="right">Monto</th></tr></thead><tbody>
+    ? `<table style="width:100%;border-collapse:collapse;table-layout:fixed"><thead><tr><th>Fecha</th><th>Tipo</th><th class="right">Monto</th></tr></thead><tbody><tr><td colspan="3" class="center" style="color:#64748B;">—</td></tr></tbody></table>`
+    : `<table style="width:100%;border-collapse:collapse;table-layout:fixed"><thead><tr><th>Fecha</th><th>Tipo</th><th class="right">Monto</th></tr></thead><tbody>
         ${listaProv.map((p) => {
           const esIngreso = p.tipo === 'ingreso_cliente_a_proveedor';
           const esCobro = p.tipo === 'cobro';
           const tipoTxt = esIngreso
-            ? 'Ingreso clientes al proveedor'
-            : esCobro
-              ? 'Cobro (te pagó)'
-              : 'Pago (le pagaste)';
-          return `<tr><td>${formatearFecha(p.fecha)}</td><td style="font-size:12px;">${tipoTxt}</td><td class="right">${formatearMoneda(p.monto)}</td></tr>`;
+            ? 'Sin costo'
+            : esInterClientePdf
+              ? esCobro
+                ? 'Salida'
+                : 'Entrada'
+              : esCobro
+                ? 'Entrada'
+                : 'Salida';
+          return `<tr><td>${formatearFecha(p.fecha)}</td><td style="font-size:12px;">${tipoTxt}</td><td class="right" style="white-space:nowrap;">${formatearMoneda(p.monto)}</td></tr>`;
         }).join('')}
       </tbody></table>`;
 
   const filasRepartosInter =
     (pedido.pagos ?? []).length === 0
-      ? '<p style="color:#64748B;font-size:13px;">Sin repartos registrados.</p>'
+      ? `<table><thead><tr><th>Fecha</th><th class="right">Monto</th></tr></thead><tbody><tr><td colspan="2" class="center" style="color:#64748B;">—</td></tr></tbody></table>`
       : `<table><thead><tr><th>Fecha</th><th class="right">Monto</th></tr></thead><tbody>
           ${(pedido.pagos ?? [])
             .map(
@@ -376,49 +411,51 @@ const generarHTMLProveedor = (pedido: Pedido, perfil?: PerfilEmpresa | null): st
             .join('')}
         </tbody>
         <tfoot>
-          <tr><td style="font-weight:700;">Total repartido al intermediario</td><td class="right" style="font-weight:700;color:#16A34A;">${formatearMoneda(totalRepartosIntermediario)}</td></tr>
+          <tr><td style="font-weight:700;">Total</td><td class="right" style="font-weight:700;color:#16A34A;">${formatearMoneda(totalRepartosIntermediario)}</td></tr>
         </tfoot>
       </table>`;
 
-  const tfootResumen = esVentaIntermediacionPdf
+  const tfootResumen = esLegacySoloProveedorPdf
     ? `<tfoot>
-    <tr class="total-row"><td colspan="3" class="right">Total costo ítems</td><td class="right">${formatearMoneda(totalCompra)}</td></tr>
-    <tr><td colspan="3" class="right" style="color:#64748B;">Clientes pagaron al proveedor (registrado)</td><td class="right" style="color:#2563EB;">${formatearMoneda(totalIngresosClientes)}</td></tr>
-    <tr><td colspan="3" class="right" style="color:#64748B;">Repartos al intermediario (registrado)</td><td class="right" style="color:#16A34A;">${formatearMoneda(totalRepartosIntermediario)}</td></tr>
-    <tr><td colspan="3" class="right" style="color:#64748B;font-size:12px;">Liquidación costo (app): pagaste ${formatearMoneda(abonosCosto)} · cobros del proveedor ${formatearMoneda(cobrosCosto)} · Total aplicado al costo</td><td class="right" style="color:#7C3AED;">${formatearMoneda(totalPagadoProveedorResumen)}</td></tr>
-    <tr><td colspan="3" class="right" style="font-weight:700;">Saldo costo pendiente (app)</td><td class="right" style="font-weight:700;color:${colorSaldo};">${formatearMoneda(saldoCostoApp)}</td></tr>
+    <tr class="total-row"><td colspan="3" class="right">Total costos</td><td class="right">${formatearMoneda(totalCompra)}</td></tr>
+    <tr><td colspan="3" class="right" style="color:#64748B;">Directos</td><td class="right" style="color:#2563EB;">${formatearMoneda(totalIngresosClientes)}</td></tr>
+    <tr><td colspan="3" class="right" style="color:#64748B;">Abonos margen</td><td class="right" style="color:#16A34A;">${formatearMoneda(totalRepartosIntermediario)}</td></tr>
+    <tr><td colspan="3" class="right" style="color:#64748B;">Liquidado</td><td class="right" style="color:#7C3AED;">${formatearMoneda(totalPagadoProveedorResumen)}</td></tr>
+    <tr><td colspan="3" class="right" style="font-weight:700;">Pendiente</td><td class="right" style="font-weight:700;color:${colorSaldo};">${formatearMoneda(saldoCostoApp)}</td></tr>
+  </tfoot>`
+    : esInterClientePdf
+      ? `<tfoot>
+    <tr class="total-row"><td colspan="3" class="right">Total costos</td><td class="right">${formatearMoneda(totalCompra)}</td></tr>
+    <tr><td colspan="3" class="right" style="color:#64748B;">Margen</td><td class="right" style="color:#2563EB;font-weight:600;">${formatearMoneda(margenEmpresaPdf)}</td></tr>
+    <tr><td colspan="3" class="right" style="color:#64748B;">Recibido</td><td class="right" style="color:#16A34A;">${formatearMoneda(totalPagadoProveedorResumen)}</td></tr>
+    <tr><td colspan="3" class="right" style="font-weight:700;">Pendiente</td><td class="right" style="font-weight:700;color:${colorPendienteMargen};">${formatearMoneda(pendienteMargenPdf)}</td></tr>
   </tfoot>`
     : `<tfoot>
-    <tr class="total-row"><td colspan="3" class="right">Total a pagar</td><td class="right">${formatearMoneda(totalCompra)}</td></tr>
-    <tr><td colspan="3" class="right" style="color:#64748B;">Ya pagado</td><td class="right" style="color:#16A34A;">${formatearMoneda(totalPagadoProveedorResumen)}</td></tr>
-    <tr><td colspan="3" class="right" style="font-weight:700;">Saldo Pendiente</td><td class="right" style="font-weight:700;color:${colorSaldo};">${formatearMoneda(saldoCostoApp)}</td></tr>
+    <tr class="total-row"><td colspan="3" class="right">Total</td><td class="right">${formatearMoneda(totalCompra)}</td></tr>
+    <tr><td colspan="3" class="right" style="color:#64748B;">Abonado</td><td class="right" style="color:#16A34A;">${formatearMoneda(totalPagadoProveedorResumen)}</td></tr>
+    <tr><td colspan="3" class="right" style="font-weight:700;">Pendiente</td><td class="right" style="font-weight:700;color:${colorSaldo};">${formatearMoneda(saldoCostoApp)}</td></tr>
   </tfoot>`;
 
-  const metaEstado = esVentaIntermediacionPdf
-    ? `<p class="meta">Estado reparto / margen: ${estadoBadgeLadoCobro(resumen?.estado)}</p>
-  <p class="meta">Estado liquidación costo (app): ${estadoBadge(resumen?.estadoProveedor)}</p>
-  <p class="meta" style="font-size:12px;">En venta con proveedor, «ingresos de clientes» son referencia de flujo; no sustituyen el costo ítems salvo que registres pagos/cobros de costo.</p>`
-    : `<p class="meta">Estado pago: ${estadoBadge(resumen?.estadoProveedor)}</p>`;
+  const metaEstadoResumido = esLegacySoloProveedorPdf
+    ? `<p class="meta">${estadoBadgeLadoCobro(resumen?.estado)} · ${estadoBadge(resumen?.estadoProveedor)}</p>`
+    : `<p class="meta">${estadoBadge(resumen?.estadoProveedor)}</p>`;
 
-  const bloqueRepartos = esVentaIntermediacionPdf
-    ? `<h2>Repartos al intermediario</h2>${filasRepartosInter}`
-    : '';
+  const bloqueRepartos = esLegacySoloProveedorPdf ? `<h2>Abonos margen</h2>${filasRepartosInter}` : '';
 
   return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"/>
   <style>${CSS_BASE} h1 { color:#7C3AED; }</style></head><body>
   ${cabeceraEmpresaCompactaHtml(perfil)}
-  <h1>${tituloPedidoPdf(pedido, 'Proveedor')}</h1>
+  <h1>${tituloDocumentoPedido(pedido)}</h1>
   <p class="meta">Fecha: ${formatearFecha(pedido.fecha)}</p>
-  <p class="meta">Proveedor: <strong>${pedido.proveedor?.nombre ?? '-'}</strong> <span class="badge proveedor" style="margin-left:6px;">Proveedor</span></p>
+  <p class="meta"><strong>${escaparHtml(pedido.proveedor?.nombre?.trim() || '—')}</strong></p>
   ${metaNitPersonaHtml(pedido.proveedor?.nit)}
-  ${metaEstado}
-  <h2>Ítems (precio de costo)</h2>
-  <table><thead><tr><th>Nombre</th><th class="center">Cant.</th><th class="right">Costo unit.</th><th class="right">Subtotal</th></tr></thead>
+  ${metaEstadoResumido}
+  <h2>Ítems</h2>
+  <table style="width:100%;border-collapse:collapse;table-layout:fixed"><thead><tr><th>Nombre</th><th class="center">Cant.</th><th class="right">Costo u.</th><th class="right">Subtotal</th></tr></thead>
   <tbody>${filasItems}</tbody>
   ${tfootResumen}</table>
-  <h2>Movimientos con el proveedor</h2>${filasPagos}
+  <h2>Movimientos</h2>${filasPagos}
   ${bloqueRepartos}
-  <p class="footer">Generado el ${new Date().toLocaleDateString('es-GT')}</p>
   </body></html>`;
 };
 
@@ -443,19 +480,43 @@ const generarHTMLCompleto = (pedido: Pedido, perfil?: PerfilEmpresa | null): str
   const saldoCliente = resumen?.saldoPendiente ?? Math.max(0, refClientePdf - cobradoCliente);
   const saldoProveedor = Math.max(0, totalCompra - pagadoProveedor);
   const margenPotencial = totalVenta - totalCompra;
+  const esInterConCliente = esVentaProveedorConClienteEnPdf(pedido);
+  const pendienteMargenCompleto = esInterConCliente
+    ? Math.max(0, margenPotencial - pagadoProveedor)
+    : 0;
   const filasTotalesVentaIva =
     montoIvaVenta > 0 && pedido.impuesto != null
-      ? `<tr><td colspan="2" class="right" style="color:#64748B;">Subtotal venta ítems</td><td class="right">${formatearMoneda(subtotalVenta)}</td><td></td><td></td></tr>
-    <tr><td colspan="2" class="right" style="color:#64748B;">IVA (${pedido.impuesto}%)</td><td class="right">${formatearMoneda(montoIvaVenta)}</td><td></td><td></td></tr>`
+      ? `<tr><td colspan="2" class="right" style="color:#64748B;">Subtotal venta</td><td class="right">${formatearMoneda(subtotalVenta)}</td><td></td><td></td></tr>
+    <tr><td colspan="2" class="right" style="color:#64748B;">IVA ${pedido.impuesto}%</td><td class="right">${formatearMoneda(montoIvaVenta)}</td><td></td><td></td></tr>`
       : '';
-  const gananciaReal = cobradoCliente - abonosProvPdf + cobrosProvPdf;
+  const netoProveedorLiquidaMargen = abonosProvPdf - cobrosProvPdf;
+  const gananciaReal = esInterConCliente
+    ? netoProveedorLiquidaMargen
+    : cobradoCliente - abonosProvPdf + cobrosProvPdf;
   const colorGanancia = gananciaReal >= 0 ? '#16A34A' : '#DC2626';
-  const nombreClienteCompleto =
-    pedido.persona?.nombre?.trim()
-      ? pedido.persona.nombre
-      : pedido.tipo === 'venta' && pedido.proveedor
-        ? pedido.nombreReferencia?.trim() || pedido.proveedor.nombre || 'Venta proveedor'
-        : '-';
+  const nombreClienteCompleto = pedido.persona?.nombre?.trim()
+    ? pedido.persona.nombre
+    : pedido.tipo === 'venta'
+      ? pedido.nombreReferencia?.trim() || pedido.proveedor?.nombre || '—'
+      : '—';
+
+  const tituloColCliente = 'Cliente';
+
+  const tituloColProveedor = 'Proveedor';
+
+  const cajaGananciaHtml = esInterConCliente
+    ? `<div class="ganancia-box">
+    <div class="ganancia-row"><span>Esperado</span><span style="color:#2563EB;font-weight:600;">${formatearMoneda(margenPotencial)}</span></div>
+    <div class="ganancia-row"><span>Recibido</span><span style="color:#7C3AED;font-weight:600;">${formatearMoneda(gananciaReal)}</span></div>
+    <div class="ganancia-total" style="color:${colorGanancia};">Total ${formatearMoneda(gananciaReal)}</div>
+  </div>`
+    : `<div class="ganancia-box">
+    <div class="ganancia-row"><span>Entradas</span><span style="color:#2563EB;font-weight:600;">${formatearMoneda(cobradoCliente)}</span></div>
+    <div class="ganancia-row"><span>Salidas</span><span style="color:#7C3AED;font-weight:600;">− ${formatearMoneda(netoProveedorLiquidaMargen)}</span></div>
+    <div class="ganancia-total" style="color:${colorGanancia};">
+      Resultado ${formatearMoneda(gananciaReal)}
+    </div>
+  </div>`;
 
   const filasItems = (pedido.items ?? []).map((item) => `<tr>
     <td>${item.nombre}</td>
@@ -472,10 +533,40 @@ const generarHTMLCompleto = (pedido: Pedido, perfil?: PerfilEmpresa | null): str
   const filasPagosProveedor = (pedido.pagosProveedor ?? []).map((p) => {
     const esIngreso = p.tipo === 'ingreso_cliente_a_proveedor';
     const esCobro = p.tipo === 'cobro';
-    const tipoTxt = esIngreso ? 'Ingreso clientes' : esCobro ? 'Cobro' : 'Pago';
+    const tipoTxt = esIngreso
+      ? 'Sin costo'
+      : esInterConCliente
+        ? esCobro
+          ? 'Salida'
+          : 'Entrada'
+        : esCobro
+          ? 'Entrada'
+          : 'Salida';
     const col = esIngreso ? '#2563EB' : esCobro ? '#16A34A' : '#7C3AED';
-    return `<tr><td>${formatearFecha(p.fecha)}</td><td style="font-size:12px;color:${col};">${tipoTxt}</td><td class="right" style="color:${col};">${formatearMoneda(p.monto)}</td></tr>`;
+    return `<tr><td>${formatearFecha(p.fecha)}</td><td style="font-size:12px;color:${col};">${tipoTxt}</td><td class="right" style="color:${col};white-space:nowrap;">${formatearMoneda(p.monto)}</td></tr>`;
   }).join('');
+
+  const tfootProveedorColumna = esInterConCliente
+    ? `<tfoot>
+        <tr>
+          <td colspan="2" style="font-weight:700;">Recibido</td>
+          <td class="right" style="color:#7C3AED;font-weight:700;white-space:nowrap;">${formatearMoneda(pagadoProveedor)}</td>
+        </tr>
+        <tr>
+          <td colspan="2" style="font-weight:700;color:#DC2626;">Pendiente</td>
+          <td class="right" style="color:#DC2626;font-weight:700;white-space:nowrap;">${formatearMoneda(pendienteMargenCompleto)}</td>
+        </tr>
+      </tfoot>`
+    : `<tfoot>
+        <tr>
+          <td colspan="2" style="font-weight:700;">Liquidado</td>
+          <td class="right" style="color:#7C3AED;font-weight:700;white-space:nowrap;">${formatearMoneda(pagadoProveedor)}</td>
+        </tr>
+        <tr>
+          <td colspan="2" style="color:#DC2626;">Pendiente</td>
+          <td class="right" style="color:#DC2626;white-space:nowrap;">${formatearMoneda(saldoProveedor)}</td>
+        </tr>
+      </tfoot>`;
 
   return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"/>
   <style>${CSS_BASE}
@@ -487,26 +578,23 @@ const generarHTMLCompleto = (pedido: Pedido, perfil?: PerfilEmpresa | null): str
     .col { flex:1; }
   </style></head><body>
   ${cabeceraEmpresaCompactaHtml(perfil)}
-  <h1>${tituloPedidoPdf(pedido, 'Resumen Completo')}</h1>
+  <h1>${tituloDocumentoPedido(pedido)}</h1>
   <p class="meta">Fecha: ${formatearFecha(pedido.fecha)}</p>
-  <p class="meta">
-    Cliente: <strong>${escaparHtml(nombreClienteCompleto)}</strong>
-    &nbsp;·&nbsp;
-    Proveedor: <strong>${pedido.proveedor?.nombre ?? '-'}</strong>
-  </p>
+  <p class="meta">Cliente: <strong>${escaparHtml(nombreClienteCompleto)}</strong></p>
+  <p class="meta">Proveedor: <strong>${escaparHtml(pedido.proveedor?.nombre?.trim() || '—')}</strong></p>
   ${metaNitPersonaHtml(pedido.persona?.nit)}
   ${metaNitPersonaHtml(pedido.proveedor?.nit)}
 
   <h2>Ítems</h2>
   <table><thead><tr>
     <th>Nombre</th><th class="center">Cant.</th>
-    <th class="right">Costo</th><th class="right">Venta</th><th class="right">Margen</th>
+    <th class="right">Costo</th><th class="right">Venta</th><th class="right">Diferencia</th>
   </tr></thead>
   <tbody>${filasItems}</tbody>
   <tfoot>
     ${filasTotalesVentaIva}
     <tr class="total-row">
-      <td colspan="2" class="right">${montoIvaVenta > 0 ? 'Totales (costo · venta con IVA)' : 'Totales'}</td>
+      <td colspan="2" class="right">Totales</td>
       <td class="right">${formatearMoneda(totalCompra)}</td>
       <td class="right">${formatearMoneda(totalVenta)}</td>
       <td class="right" style="color:#059669;">${formatearMoneda(margenPotencial)}</td>
@@ -515,37 +603,25 @@ const generarHTMLCompleto = (pedido: Pedido, perfil?: PerfilEmpresa | null): str
 
   <div class="dos-col" style="margin-top:20px;">
     <div class="col">
-      <h2 style="color:#2563EB;">Pagos del cliente</h2>
-      <table><thead><tr><th>Fecha</th><th class="right">Monto</th></tr></thead>
-      <tbody>${filasPagosCliente || '<tr><td colspan="2" style="color:#64748B;">Sin pagos</td></tr>'}</tbody>
+      <h2 style="color:#2563EB;">${tituloColCliente}</h2>
+      <table style="width:100%;border-collapse:collapse;table-layout:fixed"><thead><tr><th>Fecha</th><th class="right">Monto</th></tr></thead>
+      <tbody>${filasPagosCliente || '<tr><td colspan="2" class="center" style="color:#64748B;">—</td></tr>'}</tbody>
       <tfoot>
-        <tr><td style="font-weight:700;">Cobrado</td><td class="right" style="color:#2563EB;font-weight:700;">${formatearMoneda(cobradoCliente)}</td></tr>
-        <tr><td style="color:#DC2626;">Pendiente</td><td class="right" style="color:#DC2626;">${formatearMoneda(saldoCliente)}</td></tr>
+        <tr><td style="font-weight:700;">Abonado</td><td class="right" style="color:#2563EB;font-weight:700;white-space:nowrap;">${formatearMoneda(cobradoCliente)}</td></tr>
+        <tr><td style="color:#DC2626;">Pendiente</td><td class="right" style="color:#DC2626;white-space:nowrap;">${formatearMoneda(saldoCliente)}</td></tr>
       </tfoot></table>
     </div>
     <div class="col">
-      <h2 style="color:#7C3AED;">Proveedor (pagos y cobros)</h2>
-      <table><thead><tr><th>Fecha</th><th>Tipo</th><th class="right">Monto</th></tr></thead>
-      <tbody>${filasPagosProveedor || '<tr><td colspan="3" style="color:#64748B;">Sin movimientos</td></tr>'}</tbody>
-      <tfoot>
-        <tr><td colspan="2" style="font-weight:700;">Liquidado (abonos − cobros en neto: ${formatearMoneda(abonosProvPdf - cobrosProvPdf)})</td><td class="right" style="color:#7C3AED;font-weight:700;">${formatearMoneda(pagadoProveedor)}</td></tr>
-        <tr><td colspan="2" style="color:#DC2626;">Pendiente costo</td><td class="right" style="color:#DC2626;">${formatearMoneda(saldoProveedor)}</td></tr>
-      </tfoot></table>
+      <h2 style="color:#7C3AED;">${tituloColProveedor}</h2>
+      <table style="width:100%;border-collapse:collapse;table-layout:fixed"><thead><tr><th>Fecha</th><th>Tipo</th><th class="right">Monto</th></tr></thead>
+      <tbody>${filasPagosProveedor || '<tr><td colspan="3" class="center" style="color:#64748B;">—</td></tr>'}</tbody>
+      ${tfootProveedorColumna}
+      </table>
     </div>
   </div>
 
-  <div class="ganancia-box">
-    <div class="ganancia-row"><span>Cobrado al cliente</span><span style="color:#2563EB;font-weight:600;">${formatearMoneda(cobradoCliente)}</span></div>
-    <div class="ganancia-row"><span>Neto proveedor (pagaste − te pagó)</span><span style="color:#7C3AED;font-weight:600;">− ${formatearMoneda(abonosProvPdf - cobrosProvPdf)}</span></div>
-    <div class="ganancia-total" style="color:${colorGanancia};">
-      Ganancia real: ${formatearMoneda(gananciaReal)}
-    </div>
-    <p style="font-size:11px;color:#64748B;text-align:center;margin-top:8px;">
-      Margen potencial (total a cobrar al cliente − costo): ${formatearMoneda(margenPotencial)}
-    </p>
-  </div>
+  ${cajaGananciaHtml}
 
-  <p class="footer">Generado el ${new Date().toLocaleDateString('es-GT')}</p>
   </body></html>`;
 };
 
@@ -886,13 +962,10 @@ export const generarYCompartirPDF = async (
   tipo: TipoPDF = 'cliente',
   perfil?: PerfilEmpresa | null,
 ): Promise<void> => {
-  const ventaIntermediacionSinClienteEnApp =
-    pedido.tipo === 'venta' &&
-    (pedido.personaId == null || pedido.personaId === undefined) &&
-    pedido.persona == null &&
-    !!pedido.proveedorId;
+  const puedePdfClienteSinPersonaEnVenta =
+    pedido.tipo === 'venta' && esVentaSoloProveedorSinCliente(pedido);
 
-  if (!pedido.persona && !ventaIntermediacionSinClienteEnApp) {
+  if (!pedido.persona && !puedePdfClienteSinPersonaEnVenta) {
     throw new Error('El pedido no tiene persona asociada.');
   }
 
@@ -916,11 +989,11 @@ export const generarYCompartirPDF = async (
   switch (tipo) {
     case 'proveedor':
       html = generarHTMLProveedor(pedido, perfil);
-      titulo = sufijoArchivo('Proveedor');
+      titulo = sufijoArchivo('costos');
       break;
     case 'completo':
       html = generarHTMLCompleto(pedido, perfil);
-      titulo = sufijoArchivo('Completo');
+      titulo = sufijoArchivo('cuadre');
       break;
     case 'cotizacion':
       html = generarHTMLCotizacion(pedido, perfil);
@@ -930,8 +1003,138 @@ export const generarYCompartirPDF = async (
       break;
     default:
       html = generarHTMLCliente(pedido, perfil);
-      titulo = sufijoArchivo('Cliente');
+      titulo = sufijoArchivo('venta');
   }
 
   await imprimirYCompartirHtml(html, titulo);
+};
+
+// ─── PDF Catálogo (compartir con clientes finales) ────────────────────────────
+
+const urlImagenProductoPdf = (secureUrl: string): string => {
+  const t = secureUrl.trim();
+  if (!t || !esUrlHttpsSeguraParaImg(t)) return t;
+  try {
+    const u = new URL(t);
+    if (!u.hostname.includes('res.cloudinary.com')) return t;
+    const parts = u.pathname.split('/upload/');
+    if (parts.length < 2) return t;
+    return `${u.origin}/upload/c_limit,w_280,h_280,f_auto,q_auto/${parts[1]}`;
+  } catch {
+    return t;
+  }
+};
+
+const resolverSrcImagenProductoPdf = (producto: Producto): string | null => {
+  const url = producto.imagenUrl?.trim();
+  if (!url || !esUrlHttpsSeguraParaImg(url)) return null;
+  return urlImagenProductoPdf(url);
+};
+
+const placeholderProductoPdfHtml = (nombre: string, tipo: TipoItem): string => {
+  const inicial = nombre.charAt(0).toUpperCase() || '?';
+  const esBien = tipo === 'bien';
+  const bg = esBien ? '#4F46E5' : '#7C3AED';
+  const etiqueta = esBien ? 'Producto' : 'Servicio';
+  return `<div style="width:100%;height:140px;background:linear-gradient(145deg,${bg} 0%,${bg}dd 100%);border-radius:12px 12px 0 0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;">
+    <div style="width:52px;height:52px;border-radius:26px;background:rgba(255,255,255,0.22);display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:800;color:#fff;">${escaparHtml(inicial)}</div>
+    <span style="font-size:10px;font-weight:700;color:rgba(255,255,255,0.9);letter-spacing:0.6px;text-transform:uppercase;">${etiqueta}</span>
+  </div>`;
+};
+
+const tarjetaProductoCatalogoHtml = (producto: Producto): string => {
+  const imgSrc = resolverSrcImagenProductoPdf(producto);
+  const imgBlock = imgSrc
+    ? `<div style="width:100%;height:140px;background:#F8FAFC;border-radius:12px 12px 0 0;overflow:hidden;display:flex;align-items:center;justify-content:center;">
+        <img src="${escaparAttrImgSrc(imgSrc)}" alt="" style="max-width:100%;max-height:140px;object-fit:contain;display:block;" />
+      </div>`
+    : placeholderProductoPdfHtml(producto.nombre, producto.tipo);
+  const esBien = producto.tipo === 'bien';
+  const badgeBg = esBien ? '#EEF2FF' : '#EDE9FE';
+  const badgeColor = esBien ? '#4338CA' : '#6D28D9';
+  const badgeTxt = esBien ? 'Producto' : 'Servicio';
+
+  return `<div style="break-inside:avoid;page-break-inside:avoid;border:1px solid #E5E7EB;border-radius:12px;overflow:hidden;background:#fff;box-shadow:0 2px 8px rgba(15,23,42,0.06);">
+    ${imgBlock}
+    <div style="padding:14px 16px 16px;">
+      <span style="display:inline-block;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;padding:3px 8px;border-radius:20px;background:${badgeBg};color:${badgeColor};margin-bottom:8px;">${badgeTxt}</span>
+      <div style="font-size:14px;font-weight:700;color:#111827;line-height:1.35;margin-bottom:10px;min-height:38px;">${escaparHtml(producto.nombre)}</div>
+      <div style="font-size:11px;color:#6B7280;margin-bottom:2px;">Precio</div>
+      <div style="font-size:20px;font-weight:800;color:#059669;letter-spacing:-0.3px;">${formatearMoneda(producto.precioEmpresa)}</div>
+    </div>
+  </div>`;
+};
+
+export const generarHTMLCatalogo = (productos: Producto[], perfil?: PerfilEmpresa | null): string => {
+  const empresa = perfil?.nombreEmpresa?.trim() || 'Nuestra empresa';
+  const logoSrc = resolverSrcLogoPdf(perfil);
+  const fecha = formatearFecha(new Date().toISOString());
+  const contacto: string[] = [];
+  if (perfil?.telefono?.trim()) {
+    contacto.push(`${icoTelefono}${escaparHtml(perfil.telefono.trim())}`);
+  }
+  if (perfil?.email?.trim()) {
+    contacto.push(`${icoCorreo}${escaparHtml(perfil.email.trim())}`);
+  }
+  if (perfil?.direccion?.trim()) {
+    contacto.push(`${icoUbicacion}${escaparHtml(perfil.direccion.trim())}`);
+  }
+  const contactoHtml =
+    contacto.length > 0
+      ? `<div style="margin-top:28px;padding-top:18px;border-top:1px solid #E5E7EB;text-align:center;font-size:12px;color:#64748B;line-height:1.8;">
+          ${contacto.join('<br/>')}
+        </div>`
+      : '';
+
+  const logoHeader = logoSrc
+    ? imgLogoHtml(logoSrc, 72, 200)
+    : avatarInicialEmpresaHtml(perfil?.nombreEmpresa, 64);
+
+  const grid = productos.map((p) => tarjetaProductoCatalogoHtml(p)).join('');
+
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #111827; background: #fff; }
+    @media print { .cat-grid { gap: 16px !important; } }
+  </style>
+</head>
+<body>
+  <div style="background:linear-gradient(135deg,#4F46E5 0%,#4338CA 55%,#312E81 100%);padding:32px 40px 36px;text-align:center;color:#fff;">
+    <div style="margin-bottom:14px;">${logoHeader}</div>
+    <div style="font-size:22px;font-weight:800;letter-spacing:-0.3px;margin-bottom:6px;">${escaparHtml(empresa)}</div>
+    ${perfil?.nit?.trim() ? `<div style="font-size:12px;opacity:0.9;margin-bottom:14px;">NIT ${escaparHtml(perfil.nit.trim())}</div>` : ''}
+    <div style="display:inline-block;background:rgba(255,255,255,0.18);border-radius:24px;padding:8px 20px;font-size:12px;font-weight:600;letter-spacing:0.4px;">
+      Catálogo de productos · ${fecha}
+    </div>
+  </div>
+
+  <div style="padding:28px 32px 36px;">
+    <p style="font-size:13px;color:#6B7280;text-align:center;margin-bottom:24px;line-height:1.5;">
+      Consultá nuestros precios. Los valores pueden actualizarse; confirmá disponibilidad al realizar tu pedido.
+    </p>
+    <div class="cat-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:18px;">
+      ${grid}
+    </div>
+    ${contactoHtml}
+    <p style="margin-top:24px;text-align:center;font-size:10px;color:#9CA3AF;">Documento generado para compartir con clientes · ${escaparHtml(empresa)}</p>
+  </div>
+</body>
+</html>`;
+};
+
+/** PDF del catálogo (solo precio empresa) para enviar a clientes finales. */
+export const generarYCompartirPdfCatalogo = async (
+  productos: Producto[],
+  perfil?: PerfilEmpresa | null,
+): Promise<void> => {
+  if (productos.length === 0) {
+    throw new Error('Agregá al menos un producto al catálogo antes de compartir.');
+  }
+  const html = generarHTMLCatalogo(productos, perfil);
+  const nombre = perfil?.nombreEmpresa?.trim() || 'Catálogo';
+  await imprimirYCompartirHtml(html, `Catálogo · ${nombre}`);
 };

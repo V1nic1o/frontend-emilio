@@ -17,7 +17,7 @@ import { InicioStackParamList, TabParamList } from '../../navegacion/tipos';
 import { usePedidos } from '../../hooks/usePedidos';
 import { useAsesoriasPendientes } from '../../hooks/useAsesorias';
 import { useWallet } from '../../contexto/WalletContext';
-import { pedidosRequierenAccionInicio, esVentaSoloProveedorSinCliente, tituloVentaParaListado } from '../../utilidades/pagosPendientes';
+import { pedidosRequierenAccionInicio, esVentaSoloProveedorSinCliente, tituloVentaParaListado, nombreClienteBajoTituloPedido } from '../../utilidades/pagosPendientes';
 import { COLORES } from '../../estilos/colores';
 import { FUENTE, ESPACIADO, RADIO, estilosComunes } from '../../estilos/tema';
 import { formatearMoneda, formatearFecha } from '../../utilidades/formato';
@@ -116,6 +116,8 @@ const PendientesSinSaldarPantalla: React.FC<Props> = ({ navigation }) => {
         const estadoMostrar = saldoCliente > 0
           ? (p.resumen?.estado ?? 'pendiente')
           : (p.resumen?.estadoProveedor ?? 'pendiente');
+        const titListado = tituloVentaParaListado(p);
+        const lineaCliente = nombreClienteBajoTituloPedido(p, titListado);
         return (
           <TouchableOpacity style={estilos.fila} onPress={() => abrirPedido(p.id)} activeOpacity={0.85}>
             <View style={[estilos.iconoBox, { backgroundColor: esVenta ? COLORES.primarioClaro : COLORES.moradoClaro }]}>
@@ -127,8 +129,13 @@ const PendientesSinSaldarPantalla: React.FC<Props> = ({ navigation }) => {
             </View>
             <View style={estilos.info}>
               <Text style={estilos.nombre} numberOfLines={1}>
-                {tituloVentaParaListado(p)}
+                {titListado}
               </Text>
+              {lineaCliente ? (
+                <Text style={estilos.subCliente} numberOfLines={1}>
+                  {lineaCliente}
+                </Text>
+              ) : null}
               <Text style={estilos.sub}>{formatearFecha(p.fecha)}</Text>
             </View>
             <View style={estilos.der}>
@@ -263,6 +270,12 @@ const estilos = StyleSheet.create({
   },
   info: { flex: 1, minWidth: 0 },
   nombre: { fontSize: FUENTE.tamanoBase, fontWeight: FUENTE.pesoBold, color: COLORES.texto },
+  subCliente: {
+    fontSize: FUENTE.tamanoXs,
+    fontWeight: FUENTE.pesoMedio,
+    color: COLORES.texto,
+    marginTop: 2,
+  },
   sub: { fontSize: FUENTE.tamanoXs, color: COLORES.textoSecundario, marginTop: 3 },
   der: { alignItems: 'flex-end', gap: 4 },
   monto: { fontSize: FUENTE.tamanoBase, fontWeight: FUENTE.pesoBold, color: COLORES.texto },

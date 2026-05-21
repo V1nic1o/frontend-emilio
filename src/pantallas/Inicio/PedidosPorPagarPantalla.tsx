@@ -60,7 +60,7 @@ const PedidosPorPagarPantalla: React.FC<Props> = ({ navigation }) => {
       <TouchableOpacity style={estilos.fila} onPress={() => abrirPedido(item.pedidoId)} activeOpacity={0.85}>
         <View style={[estilos.iconoBox, { backgroundColor: COLORES.pendienteClaro }]}>
           <Ionicons
-            name={item.modo === 'compra_proveedor' ? 'arrow-down-circle-outline' : 'business-outline'}
+            name="business-outline"
             size={22}
             color={COLORES.pendiente}
           />
@@ -91,7 +91,7 @@ const PedidosPorPagarPantalla: React.FC<Props> = ({ navigation }) => {
   return (
     <SafeAreaView style={estilosComunes.contenedor} edges={['bottom']}>
       <Text style={estilos.intro}>
-        Elegí un ítem para abrir el pedido y registrar pagos a proveedor o en la compra.
+        Elegí un ítem para abrir el pedido y registrar pagos al proveedor.
       </Text>
       <FlatList
         data={filas}

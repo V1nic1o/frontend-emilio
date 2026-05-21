@@ -16,9 +16,8 @@ import { useGastos } from '../hooks/useGastos';
 import { useEstadisticas } from '../hooks/useEstadisticas';
 import { useAsesoriasPendientes } from '../hooks/useAsesorias';
 import { useWallet } from '../contexto/WalletContext';
-import { asesoriasServicio } from '../servicios/asesorias.servicio';
 import { COLORES } from '../estilos/colores';
-import { FUENTE, ESPACIADO, RADIO } from '../estilos/tema';
+import { FUENTE, ESPACIADO } from '../estilos/tema';
 import { formatearMoneda, esMesActual, formatearFecha } from '../utilidades/formato';
 import {
   pedidosRequierenAccionInicio,
@@ -26,7 +25,9 @@ import {
   ventasPorCobrarPendientes,
   esVentaSoloProveedorSinCliente,
   tituloVentaParaListado,
+  nombreClienteBajoTituloPedido,
 } from '../utilidades/pagosPendientes';
+import { modoPedidoNegocio } from '../utilidades/modoPedido';
 import { TabParamList } from '../navegacion/tipos';
 import EstadoBadge from '../componentes/EstadoBadge';
 import EncabezadoPanelSuperior from '../componentes/EncabezadoPanelSuperior';
@@ -35,6 +36,111 @@ import { esWalletPersonal } from '../utilidades/wallet';
 
 type NavProp = BottomTabNavigationProp<TabParamList>;
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
+
+function TotalHistTile({
+  icon,
+  titulo,
+  monto,
+  fondo,
+  borde,
+  barra,
+  colorMonto,
+}: {
+  icon: IoniconName;
+  titulo: string;
+  monto: string;
+  fondo: string;
+  borde: string;
+  barra: string;
+  colorMonto: string;
+}) {
+  return (
+    <View
+      style={[
+        estilos.totalHistTile,
+        { backgroundColor: fondo, borderColor: borde, borderLeftWidth: 5, borderLeftColor: barra },
+      ]}
+    >
+      <View style={estilos.totalHistIconBubble}>
+        <Ionicons name={icon} size={22} color={barra} />
+      </View>
+      <Text style={estilos.totalHistTileTitulo}>{titulo}</Text>
+      <Text style={estilos.totalHistTileHist}>Histórico</Text>
+      <Text style={[estilos.totalHistTileValor, { color: colorMonto }]}>{monto}</Text>
+    </View>
+  );
+}
+
+function TotalHistCabecera() {
+  return (
+    <View style={estilos.totalHistHeader}>
+      <Text style={estilos.totalHistEncabezado}>Totales acumulados</Text>
+      <View style={estilos.totalHistPill}>
+        <Ionicons name="calendar-outline" size={15} color={COLORES.primarioOscuro} />
+        <Text style={estilos.totalHistPillTxt}>Todos los meses</Text>
+      </View>
+    </View>
+  );
+}
+
+function TotalHistMiniGrilla({
+  totalIngresos,
+  totalGastos,
+  totalIva,
+  esGananciaPositiva,
+  gananciaNeta,
+}: {
+  totalIngresos: number;
+  totalGastos: number;
+  totalIva: number;
+  esGananciaPositiva: boolean;
+  gananciaNeta: number;
+}) {
+  return (
+    <View style={estilos.totalHistGrid}>
+      <View style={estilos.totalHistFilaGrid}>
+        <TotalHistTile
+          icon="trending-up"
+          titulo="Ingresos"
+          monto={formatearMoneda(totalIngresos)}
+          fondo={COLORES.pagadoClaro}
+          borde="rgba(5, 150, 105, 0.2)"
+          barra={COLORES.pagado}
+          colorMonto={COLORES.pagado}
+        />
+        <TotalHistTile
+          icon="receipt"
+          titulo="Gastos"
+          monto={formatearMoneda(totalGastos)}
+          fondo={COLORES.peligroClaro}
+          borde="rgba(220, 38, 38, 0.2)"
+          barra={COLORES.pendiente}
+          colorMonto={COLORES.pendiente}
+        />
+      </View>
+      <View style={estilos.totalHistFilaGrid}>
+        <TotalHistTile
+          icon="pricetag-outline"
+          titulo="IVA"
+          monto={formatearMoneda(totalIva)}
+          fondo={COLORES.moradoClaro}
+          borde="rgba(124, 58, 237, 0.2)"
+          barra={COLORES.morado}
+          colorMonto={COLORES.morado}
+        />
+        <TotalHistTile
+          icon="stats-chart"
+          titulo="Ganancia neta"
+          monto={`${esGananciaPositiva ? '' : '−'}${formatearMoneda(Math.abs(gananciaNeta))}`}
+          fondo={esGananciaPositiva ? COLORES.primarioClaro : COLORES.peligroClaro}
+          borde={esGananciaPositiva ? 'rgba(79, 70, 229, 0.22)' : 'rgba(220, 38, 38, 0.2)'}
+          barra={esGananciaPositiva ? COLORES.primario : COLORES.peligro}
+          colorMonto={esGananciaPositiva ? COLORES.primario : COLORES.peligro}
+        />
+      </View>
+    </View>
+  );
+}
 
 const DIA_SEMANA = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 const MES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
@@ -51,16 +157,8 @@ const Inicio: React.FC = () => {
   const refrescando = cargandoPedidos || cargandoGastos || cargandoStats || cargandoAsesoriasPend;
 
   const cargar = useCallback(async () => {
-    const wid = walletSeleccionado?.id;
-    if (wid) {
-      try {
-        await asesoriasServicio.sincronizar(wid);
-      } catch {
-        // No bloquear el panel si el sync falla (p. ej. offline)
-      }
-    }
     await Promise.all([cargarPedidos(), cargarGastos(), cargarStats(), cargarAsesoriasPendientes()]);
-  }, [walletSeleccionado, cargarPedidos, cargarGastos, cargarStats, cargarAsesoriasPendientes]);
+  }, [cargarPedidos, cargarGastos, cargarStats, cargarAsesoriasPendientes]);
 
   useFocusEffect(
     useCallback(() => {
@@ -82,13 +180,10 @@ const Inicio: React.FC = () => {
   const totalPorCobrarAsesorias = asesoriasPendientes.reduce((acc, a) => acc + a.montoTotal, 0);
   const totalPorCobrar = totalPorCobrarVentas + totalPorCobrarAsesorias;
 
-  const totalPorPagarCompras = pedidos
-    .filter((p) => p.tipo === 'compra')
-    .reduce((acc, p) => acc + (p.resumen?.saldoPendiente ?? 0), 0);
   const totalPorPagarProveedorVentas = pedidos
-    .filter((p) => p.tipo === 'venta' && !!p.proveedorId && !esVentaSoloProveedorSinCliente(p))
+    .filter((p) => p.tipo === 'venta' && modoPedidoNegocio(p) === 'venta_cliente' && !!p.proveedorId)
     .reduce((acc, p) => acc + (p.resumen?.saldoProveedor ?? 0), 0);
-  const totalPorPagar = totalPorPagarCompras + totalPorPagarProveedorVentas;
+  const totalPorPagar = totalPorPagarProveedorVentas;
 
   const filasPorPagar = useMemo(() => construirFilasPorPagar(pedidos), [pedidos]);
   const ventasPorCobrarList = useMemo(() => ventasPorCobrarPendientes(pedidos), [pedidos]);
@@ -158,6 +253,10 @@ const Inicio: React.FC = () => {
 
   const irAResumenPeriodo = useCallback(() => {
     navigation.navigate('InicioTab', { screen: 'ResumenPeriodo' });
+  }, [navigation]);
+
+  const irAHistorialMesesAcumulado = useCallback(() => {
+    navigation.navigate('InicioTab', { screen: 'HistorialMesesAcumulado' });
   }, [navigation]);
 
   /** Tarjeta «Por pagar»: un solo ítem → detalle; varios → listado en Inicio. */
@@ -282,18 +381,18 @@ const Inicio: React.FC = () => {
 
   const subtituloTarjetaPorPagar = useMemo(() => {
     if (totalPorPagar <= 0) return 'Sin montos a pagar';
-    if (totalPorPagarCompras > 0 && totalPorPagarProveedorVentas <= 0) return 'Solo compras a proveedor';
-    if (totalPorPagarProveedorVentas > 0 && totalPorPagarCompras <= 0) return 'Solo pago a proveedor en ventas';
-    return `${formatearMoneda(totalPorPagarCompras)} compras · ${formatearMoneda(totalPorPagarProveedorVentas)} en ventas`;
-  }, [totalPorPagar, totalPorPagarCompras, totalPorPagarProveedorVentas]);
+    return 'Pago a proveedor en ventas cliente';
+  }, [totalPorPagar]);
 
   const hoy = new Date();
   const fechaTexto = `${DIA_SEMANA[hoy.getDay()]}, ${hoy.getDate()} de ${MES[hoy.getMonth()]}`;
 
   const gananciaNeta = estadisticas?.gananciaNeta ?? 0;
-  const gananciaMes = estadisticas?.porMes.find(
-    (m) => m.anio === hoy.getFullYear() && m.mes === ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][hoy.getMonth()]
-  );
+  /** Último slot de `porMes`: mes contable actual (zona del backend), no la fecha local del dispositivo. */
+  const gananciaMes =
+    estadisticas?.porMes && estadisticas.porMes.length > 0
+      ? estadisticas.porMes[estadisticas.porMes.length - 1]
+      : undefined;
   const gananciaNetaMes = gananciaMes?.gananciaNeta ?? 0;
   const gananciaBruta_Mes = gananciaMes?.ganancia ?? 0;
   const netaMesPedidos =
@@ -422,8 +521,23 @@ const Inicio: React.FC = () => {
                     />
                   </View>
                   <View style={estilos.pendInfo}>
-                    <Text style={estilos.pendPersona}>{tituloVentaParaListado(p)}</Text>
-                    <Text style={estilos.pendFecha}>{formatearFecha(p.fecha)}</Text>
+                    {(() => {
+                      const tit = tituloVentaParaListado(p);
+                      const subCliente = nombreClienteBajoTituloPedido(p, tit);
+                      return (
+                        <>
+                          <Text style={estilos.pendPersona} numberOfLines={2}>
+                            {tit}
+                          </Text>
+                          {subCliente ? (
+                            <Text style={estilos.pendCliente} numberOfLines={1}>
+                              {subCliente}
+                            </Text>
+                          ) : null}
+                          <Text style={estilos.pendFecha}>{formatearFecha(p.fecha)}</Text>
+                        </>
+                      );
+                    })()}
                   </View>
                   <View style={estilos.pendDer}>
                     {p.resumen && (
@@ -483,7 +597,7 @@ const Inicio: React.FC = () => {
           <AccionRapida
             icono="bag-add-outline"
             titulo="Pedido"
-            descripcion="Venta o compra"
+            descripcion="Venta cliente o venta proveedor"
             color={COLORES.morado}
             fondo={COLORES.moradoClaro}
             onPress={() => navigation.navigate('PedidosTab', { screen: 'CrearPedido', params: {} })}
@@ -547,27 +661,24 @@ const Inicio: React.FC = () => {
               <Text style={estilos.gananciaNetaSplitIngresos}>Ingresos {formatearMoneda(ingresosMesAsesorias)}</Text>
             </View>
           </View>
-          <Text style={estilos.gananciaNetaSplitAyuda}>
-            Pedidos: ingresos y costo según cobros registrados en el mes. Los gastos se reparten entre pedidos y asesorías según el margen bruto de cada uno.
-          </Text>
 
           <View style={estilos.gananciaDivider} />
           <View style={estilos.gananciaDesglose}>
             <View style={estilos.gananciaItem}>
               <Ionicons name="trending-up-outline" size={13} color="rgba(255,255,255,0.85)" />
-              <Text style={estilos.gananciaItemLabel}>Ingresos</Text>
+              <Text style={estilos.gananciaItemLabel}>Ingresos del mes</Text>
               <Text style={estilos.gananciaItemValor}>{formatearMoneda(gananciaMes?.ingresos ?? 0)}</Text>
             </View>
             <View style={estilos.gananciaItemSep} />
             <View style={estilos.gananciaItem}>
               <Ionicons name="cube-outline" size={13} color="rgba(255,255,255,0.85)" />
-              <Text style={estilos.gananciaItemLabel}>Costo</Text>
+              <Text style={estilos.gananciaItemLabel}>Costo del mes</Text>
               <Text style={estilos.gananciaItemValor}>{formatearMoneda(gananciaMes?.costoVentas ?? 0)}</Text>
             </View>
             <View style={estilos.gananciaItemSep} />
             <View style={estilos.gananciaItem}>
               <Ionicons name="receipt-outline" size={13} color="rgba(255,255,255,0.85)" />
-              <Text style={estilos.gananciaItemLabel}>Gastos</Text>
+              <Text style={estilos.gananciaItemLabel}>Gastos del mes</Text>
               <Text style={estilos.gananciaItemValor}>{formatearMoneda(gananciaMes?.gastos ?? 0)}</Text>
             </View>
           </View>
@@ -635,45 +746,50 @@ const Inicio: React.FC = () => {
           <Text style={estilos.accesoResumenPeriodoSubBlanco}>Mes, año y tendencia del workspace</Text>
         </TouchableOpacity>
 
-        {/* 5. Ingresos / gastos / IVA / ganancia neta totales */}
+        {/* 5. Totales históricos (suma de todos los meses con movimiento; distinto del bloque «Este mes»). */}
         {estadisticas &&
           (estadisticas.totalIngresos > 0 ||
             estadisticas.totalGastos > 0 ||
             (estadisticas.totalImpuestosIva ?? 0) > 0 ||
             Math.abs(estadisticas.gananciaNeta) > 0.005) && (
-          <View style={estilos.totalHistCard}>
-            <View style={estilos.totalHistFila}>
-              <View style={estilos.totalHistItem}>
-                <Ionicons name="trending-up" size={16} color={COLORES.pagado} />
-                <Text style={estilos.totalHistLabel}>Ingresos totales</Text>
-                <Text style={[estilos.totalHistValor, { color: COLORES.pagado }]}>{formatearMoneda(estadisticas.totalIngresos)}</Text>
+          <>
+            {!esPersonal ? (
+              <TouchableOpacity
+                style={estilos.totalHistCard}
+                onPress={irAHistorialMesesAcumulado}
+                activeOpacity={0.92}
+                accessibilityRole="button"
+                accessibilityLabel="Totales acumulados: abrir historial por mes y ver el detalle de cada mes"
+              >
+                <TotalHistCabecera />
+                <TotalHistMiniGrilla
+                  totalIngresos={estadisticas.totalIngresos}
+                  totalGastos={estadisticas.totalGastos}
+                  totalIva={estadisticas.totalImpuestosIva ?? 0}
+                  esGananciaPositiva={esGananciaPositiva}
+                  gananciaNeta={gananciaNeta}
+                />
+                <View style={estilos.totalHistPieHint}>
+                  <View style={estilos.totalHistPieHintRow}>
+                    <Ionicons name="chevron-forward" size={16} color={COLORES.primarioOscuro} />
+                    <Text style={estilos.totalHistPieHintTxt}>Historial por mes</Text>
+                  </View>
+                  <Text style={estilos.totalHistAyuda}>Tocá para ver el detalle por mes.</Text>
+                </View>
+              </TouchableOpacity>
+            ) : (
+              <View style={estilos.totalHistCard}>
+                <TotalHistCabecera />
+                <TotalHistMiniGrilla
+                  totalIngresos={estadisticas.totalIngresos}
+                  totalGastos={estadisticas.totalGastos}
+                  totalIva={estadisticas.totalImpuestosIva ?? 0}
+                  esGananciaPositiva={esGananciaPositiva}
+                  gananciaNeta={gananciaNeta}
+                />
               </View>
-              <View style={estilos.totalHistSep} />
-              <View style={estilos.totalHistItem}>
-                <Ionicons name="receipt" size={16} color={COLORES.pendiente} />
-                <Text style={estilos.totalHistLabel}>Gastos totales</Text>
-                <Text style={[estilos.totalHistValor, { color: COLORES.pendiente }]}>{formatearMoneda(estadisticas.totalGastos)}</Text>
-              </View>
-            </View>
-            <View style={estilos.totalHistRowSep} />
-            <View style={estilos.totalHistFila}>
-              <View style={estilos.totalHistItem}>
-                <Ionicons name="pricetag-outline" size={16} color={COLORES.morado} />
-                <Text style={estilos.totalHistLabel}>IVA cobrado</Text>
-                <Text style={[estilos.totalHistValor, { color: COLORES.morado }]}>
-                  {formatearMoneda(estadisticas.totalImpuestosIva ?? 0)}
-                </Text>
-              </View>
-              <View style={estilos.totalHistSep} />
-              <View style={estilos.totalHistItem}>
-                <Ionicons name="stats-chart" size={16} color={esGananciaPositiva ? COLORES.primario : COLORES.peligro} />
-                <Text style={estilos.totalHistLabel}>Ganancia neta</Text>
-                <Text style={[estilos.totalHistValor, { color: esGananciaPositiva ? COLORES.primario : COLORES.peligro }]}>
-                  {esGananciaPositiva ? '' : '−'}{formatearMoneda(Math.abs(gananciaNeta))}
-                </Text>
-              </View>
-            </View>
-          </View>
+            )}
+          </>
         )}
 
         {/* Crédito de desarrollador */}

@@ -32,6 +32,10 @@ export type InicioStackParamList = {
   PorCobrarDetalle: undefined;
   /** Desglose del mes en curso (misma info que la tarjeta «Este mes» en Inicio). */
   DetalleGananciaMes: undefined;
+  /** Pedidos, asesorías y gastos del mes contable (trazable). */
+  DesgloseMes: { anio: number; mes: number };
+  /** Meses con movimiento → abrir `DesgloseMes`. */
+  HistorialMesesAcumulado: undefined;
   /** Selector de periodo + tendencia (workspace empresa actual). */
   ResumenPeriodo: undefined;
   /** Cambiar contraseña estando logueado (empresa y personal). */

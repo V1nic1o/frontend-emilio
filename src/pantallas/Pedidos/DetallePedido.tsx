@@ -362,35 +362,28 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
     if (!pedido) {
       return { abonosProveedor: 0, cobrosProveedor: 0, netoEgresoProveedor: 0, utilidadRealProveedor: 0 };
     }
-    
-    // Detectar si es intermediación (venta proveedor + cliente)
-    const esIntermediacion = pedido.esIntermediacion === true;
-    
-    const lista = (pedido.pagosProveedor ?? []).filter((p) => p.tipo !== 'ingreso_cliente_a_proveedor');
+    const lista = pedido.pagosProveedor ?? [];
     const abonos = lista.filter((p) => (p.tipo ?? 'pago') === 'pago').reduce((a, p) => a + p.monto, 0);
     const cobros = lista.filter((p) => p.tipo === 'cobro').reduce((a, p) => a + p.monto, 0);
     const neto = abonos - cobros;
     const totalPagadoCliente = pedido.resumen?.totalPagado ?? 0;
-    
-    if (esIntermediacion) {
-      // En intermediación: proveedor reparte margen a empresa
-      // "abonos" son en realidad INGRESOS que la empresa recibe del proveedor
-      // Utilidad real = lo que el proveedor ha pagado a la empresa
+
+    // Intermediación: el proveedor reparte margen a la empresa (abonos = ingreso empresa).
+    if (pedido.esIntermediacion === true) {
       return {
         abonosProveedor: abonos,
         cobrosProveedor: cobros,
         netoEgresoProveedor: neto,
-        utilidadRealProveedor: neto, // Lo que la empresa ha recibido del proveedor (abonos - cobros)
-      };
-    } else {
-      // Flujo normal: empresa paga al proveedor, cobra al cliente
-      return {
-        abonosProveedor: abonos,
-        cobrosProveedor: cobros,
-        netoEgresoProveedor: neto,
-        utilidadRealProveedor: totalPagadoCliente - neto,
+        utilidadRealProveedor: neto,
       };
     }
+    // Flujo normal (incl. venta con proveedor sin intermediación): empresa paga al proveedor, cobra al cliente.
+    return {
+      abonosProveedor: abonos,
+      cobrosProveedor: cobros,
+      netoEgresoProveedor: neto,
+      utilidadRealProveedor: totalPagadoCliente - neto,
+    };
   }, [pedido]);
 
   const maxIngresoClienteProveedor = useMemo(() => {
@@ -420,10 +413,10 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
     const saldoProv =
       pedido.resumen.saldoProveedor ?? Math.max(0, totalCostoProv - totalPagProv);
     
-    // Detectar si es venta proveedor + cliente (esIntermediacion = true)
-    const esVentaProvConCliente = pedido.tipo === 'venta' && 
-      pedido.proveedorId && 
-      pedido.persona && 
+    const esVentaProvConCliente =
+      pedido.tipo === 'venta' &&
+      !!pedido.proveedorId &&
+      !!pedido.persona &&
       pedido.esIntermediacion === true;
     
     const totalVenta = pedido.resumen.totalVenta ?? 0;
@@ -487,8 +480,11 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
   if (error) return <ErrorMensaje mensaje={error} onReintentar={cargar} />;
   if (!pedido) return null;
 
-  const esVenta = pedido.tipo === 'venta';
-  const sinClienteVenta = esVenta && !pedido.persona;
+  const esCompra = pedido.tipo === 'compra';
+  const esVentaSinClienteLegado =
+    pedido.tipo === 'venta' && !pedido.persona && !!pedido.proveedorId && pedido.esIntermediacion !== true;
+  const esVenta = !esCompra;
+  const sinClienteVenta = esVentaSinClienteLegado;
   const esCliente = pedido.persona?.tipo === 'cliente';
   /** En venta: muestra el nombre del cliente (persona). Si no hay cliente, usa nombreReferencia como fallback. */
   const tituloHeroPersona =
@@ -510,14 +506,14 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
 
   // Proveedor asociado
   const tieneProveedor = !!pedido.proveedorId;
-  /** Costo/pagos al proveedor: solo ventas con cliente vinculado (no «venta solo proveedor»). */
+  /** Costo/pagos al proveedor: ventas con persona (cliente) y proveedor vinculado. */
   const mostrarLadoProveedorCosto = tieneProveedor && !!pedido.persona;
   const totalCostoProveedor = resumen?.totalCompra ?? 0;
   const totalPagadoProveedor = resumen?.totalPagadoProveedor ?? 0;
   const saldoProveedor = resumen?.saldoProveedor ?? Math.max(0, totalCostoProveedor - totalPagadoProveedor);
   const estaProveedorPagado = resumen?.estadoProveedor === 'pagado';
 
-  const mostrarTarjetaProveedorVentaSolo = sinClienteVenta && tieneProveedor;
+  const mostrarTarjetaProveedorVentaSolo = esVentaSinClienteLegado && tieneProveedor;
   /** Misma tarjeta Proveedor que en venta cliente + proveedor; también en venta sin cliente. */
   const mostrarSeccionProveedorDetalle = mostrarLadoProveedorCosto || mostrarTarjetaProveedorVentaSolo;
   
@@ -529,15 +525,12 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
   const pagosProveedorSoloIngreso = pagosProvLista.filter((p) => p.tipo === 'ingreso_cliente_a_proveedor');
   const totalIngresosClientesAlProveedor = pagosProveedorSoloIngreso.reduce((a, p) => a + p.monto, 0);
   
-  /**
-   * Venta proveedor + cliente: cliente paga AL proveedor, proveedor reparte margen a empresa.
-   * Se identifica por el campo esIntermediacion que se guarda al crear el pedido.
-   * En este caso, la tarjeta muestra la EMPRESA (no el proveedor).
-   * 
-   * Venta cliente + proveedor de costo: cliente paga a empresa, empresa paga al proveedor.
-   * esIntermediacion = false. La tarjeta muestra el PROVEEDOR.
-   */
-  const esVentaProveedorConCliente = mostrarLadoProveedorCosto && pedido.esIntermediacion === true;
+  /** Venta proveedor con cliente en app: margen que el proveedor reparte a la empresa. */
+  const esVentaProveedorConCliente =
+    pedido.tipo === 'venta' &&
+    !!pedido.proveedorId &&
+    !!pedido.persona &&
+    pedido.esIntermediacion === true;
   
   // Margen para venta proveedor + cliente: Total venta - Costo proveedor
   const margenEmpresaProveedor = esVentaProveedorConCliente ? total - totalCostoProveedor : 0;
@@ -1157,7 +1150,7 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
                     >
                       <Ionicons name="arrow-down-circle-outline" size={17} color={COLORES.blanco} />
                       <Text style={estilosLocales.botonPagarProveedorTexto}>
-                        Registrar pago del proveedor · {formatearMoneda(saldoMargenProveedor)}
+                        Registrar pago  · {formatearMoneda(saldoMargenProveedor)}
                       </Text>
                     </TouchableOpacity>
                   </View>
