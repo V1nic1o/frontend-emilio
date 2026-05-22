@@ -16,6 +16,7 @@ export const estilos = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: ESPACIADO.md,
+    minWidth: 0,
   },
   heroPersona: {
     fontSize: FUENTE.tamanoGrande,
@@ -132,6 +133,7 @@ export const estilos = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'baseline',
     gap: ESPACIADO.md,
+    minWidth: 0,
   },
   heroMetaResumenFilaSep: {
     marginTop: ESPACIADO.sm,
@@ -147,6 +149,7 @@ export const estilos = StyleSheet.create({
     textTransform: 'uppercase',
     flex: 1,
     flexShrink: 1,
+    minWidth: 0,
     paddingRight: ESPACIADO.sm,
   },
   heroMetaValorWrap: {
@@ -190,8 +193,16 @@ export const estilos = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: ESPACIADO.sm,
+    minWidth: 0,
+    gap: ESPACIADO.sm,
   },
-  cardTitulo: { fontSize: FUENTE.tamanoBase, fontWeight: FUENTE.pesoBold, color: COLORES.texto },
+  cardTitulo: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: FUENTE.tamanoBase,
+    fontWeight: FUENTE.pesoBold,
+    color: COLORES.texto,
+  },
   cardCount: {
     minWidth: 24,
     height: 24,
@@ -200,6 +211,7 @@ export const estilos = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 6,
+    flexShrink: 0,
   },
   cardCountTexto: { fontSize: FUENTE.tamanoXs, fontWeight: FUENTE.pesoBold, color: COLORES.textoSecundario },
 
@@ -210,6 +222,7 @@ export const estilos = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORES.borde,
     gap: ESPACIADO.sm,
+    minWidth: 0,
   },
   itemIconBox: {
     width: 30,
@@ -226,17 +239,40 @@ export const estilos = StyleSheet.create({
     flexShrink: 1,
   },
   itemMeta: { fontSize: FUENTE.tamanoPequeno, color: COLORES.textoSecundario, marginTop: 2 },
-  itemSubtotal: { fontSize: FUENTE.tamanoBase, fontWeight: FUENTE.pesoBold, color: COLORES.texto },
+  itemSubtotal: {
+    fontSize: FUENTE.tamanoBase,
+    fontWeight: FUENTE.pesoBold,
+    color: COLORES.texto,
+    flexShrink: 0,
+    textAlign: 'right',
+    maxWidth: '42%',
+  },
   totalFila: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingTop: ESPACIADO.sm,
     marginTop: ESPACIADO.xs,
     borderTopWidth: 1.5,
     borderTopColor: COLORES.borde,
+    minWidth: 0,
+    gap: ESPACIADO.sm,
   },
-  totalEtiqueta: { fontSize: FUENTE.tamanoBase, fontWeight: FUENTE.pesoBold, color: COLORES.texto },
-  totalValor: { fontSize: FUENTE.tamanoBase, fontWeight: FUENTE.pesoBold, color: COLORES.texto },
+  totalEtiqueta: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: FUENTE.tamanoBase,
+    fontWeight: FUENTE.pesoBold,
+    color: COLORES.texto,
+  },
+  totalValor: {
+    flexShrink: 0,
+    fontSize: FUENTE.tamanoBase,
+    fontWeight: FUENTE.pesoBold,
+    color: COLORES.texto,
+    textAlign: 'right',
+    maxWidth: '52%',
+  },
 
   sinDatosBox: { alignItems: 'center', paddingVertical: ESPACIADO.lg, gap: ESPACIADO.xs },
   sinDatos: { fontSize: FUENTE.tamanoBase, color: COLORES.textoSecundario },
@@ -248,6 +284,7 @@ export const estilos = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORES.borde,
     gap: ESPACIADO.sm,
+    minWidth: 0,
   },
   pagoIconBox: {
     width: 28,
@@ -258,7 +295,14 @@ export const estilos = StyleSheet.create({
     justifyContent: 'center',
   },
   pagoFecha: { flex: 1, minWidth: 0, fontSize: FUENTE.tamanoBase, color: COLORES.textoSecundario },
-  pagoMonto: { fontSize: FUENTE.tamanoBase, fontWeight: FUENTE.pesoBold, color: COLORES.exito },
+  pagoMonto: {
+    fontSize: FUENTE.tamanoBase,
+    fontWeight: FUENTE.pesoBold,
+    color: COLORES.exito,
+    flexShrink: 0,
+    textAlign: 'right',
+    maxWidth: '40%',
+  },
 
   botonEliminar: {
     flexDirection: 'row',
@@ -379,5 +423,5 @@ export const estilos = StyleSheet.create({
   },
   modalTitulo: { fontSize: FUENTE.tamanoGrande, fontWeight: FUENTE.pesoBold, color: COLORES.texto },
   modalSubtitulo: { fontSize: FUENTE.tamanoPequeno, color: COLORES.textoSecundario, marginTop: 2 },
-  modalBotones: { flexDirection: 'row', marginTop: ESPACIADO.xs },
+  modalBotones: { flexDirection: 'row', marginTop: ESPACIADO.xs, minWidth: 0, gap: ESPACIADO.sm },
 });

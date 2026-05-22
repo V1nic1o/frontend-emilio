@@ -105,11 +105,13 @@ const ListaPersonas: React.FC<Props> = ({ navigation }) => {
           const saldoPropio = getSaldo(item.id, item.tipo);
           const saldoCostoProveedor = item.saldoCostoPendienteConProveedor ?? 0;
           const saldoVentasCobrarProveedor = item.saldoVentaPorCobrarComoProveedor ?? 0;
+          const saldoPorCobrarClienteProveedor = item.saldoPorCobrarClienteAProveedor ?? 0;
           const saldoAsesoria = esCliente ? pendienteAsesoriaPorPersona.get(item.id) ?? 0 : 0;
           const porPagarProveedorTotal = esCliente ? saldoPropio : saldoPropio + saldoCostoProveedor;
           const tienePendienteCliente = esCliente && saldoPropio + saldoAsesoria > 0;
           const tienePendienteProveedor =
-            !esCliente && (porPagarProveedorTotal > 0 || saldoVentasCobrarProveedor > 0);
+            !esCliente &&
+            (porPagarProveedorTotal > 0 || saldoVentasCobrarProveedor > 0 || saldoPorCobrarClienteProveedor > 0);
           const color = esCliente ? COLORES.cliente : COLORES.proveedor;
           const fondo = esCliente ? COLORES.clienteClaro : COLORES.proveedorClaro;
           const inicial = (item.nombre?.trim() || '?').charAt(0).toUpperCase();
@@ -154,15 +156,26 @@ const ListaPersonas: React.FC<Props> = ({ navigation }) => {
                   <View style={{ gap: ESPACIADO.xs }}>
                     {saldoVentasCobrarProveedor > 0 && (
                       <View style={estilos.saldoBox}>
-                        <Text style={estilos.saldoLabel}>Por cobrar</Text>
+                        <Text style={[estilos.saldoLabel, estilos.saldoLabelNatural]}>Pendiente sin cliente</Text>
                         <Text style={[estilos.saldoMonto, { color: COLORES.primario }]}>
                           {formatearMoneda(saldoVentasCobrarProveedor)}
                         </Text>
                       </View>
                     )}
+                    {saldoPorCobrarClienteProveedor > 0 && (
+                      <View style={estilos.saldoBox}>
+                        <View style={estilos.saldoEtiquetaFila}>
+                          <Text style={[estilos.saldoLabel, estilos.saldoLabelNatural]}>Por cobrar</Text>
+                          <Text style={estilos.saldoMicroCliente}>al cliente</Text>
+                        </View>
+                        <Text style={[estilos.saldoMonto, { color: COLORES.peligro }]}>
+                          {formatearMoneda(saldoPorCobrarClienteProveedor)}
+                        </Text>
+                      </View>
+                    )}
                     {porPagarProveedorTotal > 0 && (
                       <View style={estilos.saldoBox}>
-                        <Text style={estilos.saldoLabel}>Por pagar</Text>
+                        <Text style={[estilos.saldoLabel, estilos.saldoLabelNatural]}>Por pagar</Text>
                         <Text style={[estilos.saldoMonto, { color: COLORES.advertencia }]}>
                           {formatearMoneda(porPagarProveedorTotal)}
                         </Text>
@@ -385,12 +398,30 @@ const estilos = StyleSheet.create({
     lineHeight: 18,
   },
   saldoBox: { gap: 1 },
+  saldoEtiquetaFila: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'baseline',
+    gap: 4,
+  },
   saldoLabel: {
     fontSize: 9,
     color: COLORES.textoSecundario,
     fontWeight: FUENTE.pesoSemibold,
     textTransform: 'uppercase',
     letterSpacing: 0.3,
+  },
+  /** Etiquetas de saldo en tarjeta de proveedor: sin mayúsculas forzadas, más fácil de leer. */
+  saldoLabelNatural: {
+    textTransform: 'none',
+    letterSpacing: 0,
+    fontSize: FUENTE.tamanoXs,
+  },
+  saldoMicroCliente: {
+    fontSize: 10,
+    lineHeight: 14,
+    color: COLORES.textoDeshabilitado,
+    fontWeight: FUENTE.pesoNormal,
   },
   saldoMonto: {
     fontSize: FUENTE.tamanoPequeno,

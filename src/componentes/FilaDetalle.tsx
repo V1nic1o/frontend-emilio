@@ -41,6 +41,8 @@ const estilos = StyleSheet.create({
     fontSize: FUENTE.tamanoBase,
     color: COLORES.textoSecundario,
     flex: 1,
+    minWidth: 0,
+    marginRight: ESPACIADO.sm,
   },
   valor: {
     fontSize: FUENTE.tamanoBase,
@@ -48,6 +50,7 @@ const estilos = StyleSheet.create({
     fontWeight: FUENTE.pesoMedio,
     textAlign: 'right',
     flex: 1,
+    minWidth: 0,
   },
   valorDestacado: {
     fontSize: FUENTE.tamanoMedio,

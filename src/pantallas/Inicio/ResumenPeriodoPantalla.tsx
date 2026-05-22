@@ -324,18 +324,18 @@ const ResumenPeriodoPantalla: React.FC = () => {
   }, [esPersonal, mesesPersonalRango, mesesEmpresaOrd]);
 
   const chartWidth = useMemo(() => {
-    const disponible = winW - ESPACIADO.md * 2 - ESPACIADO.lg * 2;
-    const base = Math.max(260, Math.min(disponible, 420));
+    const disponible = Math.max(0, winW - ESPACIADO.md * 2 - ESPACIADO.lg * 2);
+    const base = Math.min(disponible, 420);
     const n = chartLabels.length;
-    if (n <= 6) return base;
+    if (n <= 6) return Math.max(base, 1);
     return Math.max(base, n * 46);
   }, [winW, chartLabels.length]);
 
-  /** Ancho cómodo para BarChart de 1 mes (evita barra aplastada). */
-  const barChartWidthUnMes = useMemo(
-    () => Math.min(Math.max(winW - ESPACIADO.md * 2 - ESPACIADO.lg * 2, 280), 400),
-    [winW],
-  );
+  /** Ancho del BarChart de un mes: nunca mayor al ancho útil (evita overflow en móvil angosto). */
+  const barChartWidthUnMes = useMemo(() => {
+    const disponible = Math.max(0, winW - ESPACIADO.md * 2 - ESPACIADO.lg * 2);
+    return Math.min(disponible, 400);
+  }, [winW]);
 
   const lineDataNeta = useMemo(() => {
     const raw = esPersonal

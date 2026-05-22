@@ -483,8 +483,10 @@ const Inicio: React.FC = () => {
         {(pedidosPendientes.length > 0 || asesoriasPendientes.length > 0) && (
           <>
             <View style={estilos.seccionTituloFila}>
-              <Text style={estilos.seccionTitulo}>Requieren acción</Text>
-              <TouchableOpacity onPress={onPressVerTodoRequierenPago}>
+              <Text style={[estilos.seccionTitulo, estilos.seccionTituloEnFila]} numberOfLines={2}>
+                Requieren acción
+              </Text>
+              <TouchableOpacity onPress={onPressVerTodoRequierenPago} style={{ flexShrink: 0 }}>
                 <Text style={estilos.verTodos}>Ir a…</Text>
               </TouchableOpacity>
             </View>
@@ -666,19 +668,25 @@ const Inicio: React.FC = () => {
           <View style={estilos.gananciaDesglose}>
             <View style={estilos.gananciaItem}>
               <Ionicons name="trending-up-outline" size={13} color="rgba(255,255,255,0.85)" />
-              <Text style={estilos.gananciaItemLabel}>Ingresos del mes</Text>
+              <Text style={estilos.gananciaItemLabel} numberOfLines={2}>
+                Ingresos del mes
+              </Text>
               <Text style={estilos.gananciaItemValor}>{formatearMoneda(gananciaMes?.ingresos ?? 0)}</Text>
             </View>
             <View style={estilos.gananciaItemSep} />
             <View style={estilos.gananciaItem}>
               <Ionicons name="cube-outline" size={13} color="rgba(255,255,255,0.85)" />
-              <Text style={estilos.gananciaItemLabel}>Costo del mes</Text>
+              <Text style={estilos.gananciaItemLabel} numberOfLines={2}>
+                Costo del mes
+              </Text>
               <Text style={estilos.gananciaItemValor}>{formatearMoneda(gananciaMes?.costoVentas ?? 0)}</Text>
             </View>
             <View style={estilos.gananciaItemSep} />
             <View style={estilos.gananciaItem}>
               <Ionicons name="receipt-outline" size={13} color="rgba(255,255,255,0.85)" />
-              <Text style={estilos.gananciaItemLabel}>Gastos del mes</Text>
+              <Text style={estilos.gananciaItemLabel} numberOfLines={2}>
+                Gastos del mes
+              </Text>
               <Text style={estilos.gananciaItemValor}>{formatearMoneda(gananciaMes?.gastos ?? 0)}</Text>
             </View>
           </View>

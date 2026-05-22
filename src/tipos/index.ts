@@ -160,16 +160,20 @@ export interface Persona {
   createdAt: string;
   pedidos?: Pedido[];
   pedidosProveedor?: PedidoComoProveedor[];
-  /** Suma de `saldoProveedor` solo en ventas **con** cliente donde esta persona es `proveedorId`. */
+  /** Suma de `saldoProveedor` solo en ventas **cliente + proveedor de costo** (sin intermediación). */
   saldoCostoPendienteConProveedor?: number;
-  /** Suma de `saldoPendiente` de venta sin cliente en app donde es `proveedorId` (te deben por esa venta). */
+  /** Legado: venta con `personaId` null y sin intermediación; suma `saldoPendiente` de reparto/margen en app. */
   saldoVentaPorCobrarComoProveedor?: number;
+  /** Ventas intermediación: suma de `saldoPendiente` del resumen (mismo monto que el saldo principal en el detalle del pedido). */
+  saldoPorCobrarClienteAProveedor?: number;
   pedidosProveedorCount?: number;
 }
 
 export interface PedidoComoProveedor {
   id: number;
   personaId?: number | null;
+  /** Si es true: cliente paga al proveedor; pendientes de margen vs costo distintos a venta cliente + proveedor. */
+  esIntermediacion?: boolean | null;
   tipo: TipoPedido;
   fecha: string;
   nombreReferencia?: string | null;

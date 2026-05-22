@@ -11,6 +11,7 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -32,11 +33,17 @@ import { COLORES } from '../../estilos/colores';
 import { FUENTE, ESPACIADO, RADIO, estilosComunes, SCROLL_FORM_PADDING_BOTTOM } from '../../estilos/tema';
 import { formatearMoneda, formatearFecha, etiquetaPedido, subtituloNumeroPedido } from '../../utilidades/formato';
 import { mostrarAlerta, confirmarYEntonces } from '../../utilidades/alertaPlataforma';
+import { lineaSaldoPedidoComoProveedor } from '../../utilidades/saldoPedidoComoProveedor';
 
 type Props = NativeStackScreenProps<PersonasStackParamList, 'DetallePersona'>;
 
+/** Aclaración mínima en UI de proveedor + intermediación: el pendiente es cobro al cliente del pedido. */
+const AYUDA_POR_COBRAR_AL_CLIENTE = 'al cliente';
+
 const DetallePersona: React.FC<Props> = ({ navigation, route }) => {
   const { personaId } = route.params;
+  const { width: anchoVentana } = useWindowDimensions();
+  const resumenCompacto = anchoVentana < 420;
   const { walletSeleccionado } = useWallet();
   const { persona, cargando: cargandoPersona, error, cargar: cargarPersona } = usePersonaDetalle(personaId);
   const { actualizar, eliminar } = usePersonas();
@@ -85,16 +92,9 @@ const DetallePersona: React.FC<Props> = ({ navigation, route }) => {
     if (!persona) return;
     navigation.setOptions({
       title: persona.nombre,
-      headerRight: () => (
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 4 }}>
-          <IndicadorWorkspaceHeader compacto />
-          <TouchableOpacity onPress={abrirEditar} style={{ padding: 6 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Ionicons name="pencil-outline" size={20} color={COLORES.primario} />
-          </TouchableOpacity>
-        </View>
-      ),
+      headerRight: () => <IndicadorWorkspaceHeader compacto />,
     });
-  }, [persona, navigation, abrirEditar]);
+  }, [persona, navigation]);
 
   const handleGuardarEdicion = async () => {
     if (!nombreEditable.trim()) {
@@ -149,10 +149,11 @@ const DetallePersona: React.FC<Props> = ({ navigation, route }) => {
       const total = esCliente ? (resumen?.totalVenta ?? 0) : (resumen?.totalCompra ?? 0);
       const saldo = resumen ? Math.max(0, total - (resumen.totalPagado ?? 0)) : 0;
       const subNum = subtituloNumeroPedido(item);
+      const metaLine = [subNum?.trim(), formatearFecha(item.fecha)].filter(Boolean).join(' · ');
 
       return (
         <TouchableOpacity
-          style={estilos.itemPedido}
+          style={[estilos.itemPedido, resumenCompacto && estilosLocales.itemPedidoWrap]}
           onPress={() => navigation.navigate('DetallePedido', { pedidoId: item.id })}
           activeOpacity={0.85}
         >
@@ -163,87 +164,117 @@ const DetallePersona: React.FC<Props> = ({ navigation, route }) => {
               color={esVenta ? COLORES.primario : COLORES.morado}
             />
           </View>
-          <View style={estilos.pedidoInfo}>
-            <View style={estilos.pedidoFila1}>
-              <Text style={estilos.pedidoTipo} numberOfLines={2}>{etiquetaPedido(item)}</Text>
-              {resumen && <EstadoBadge estado={resumen.estado} />}
+          <View style={[estilos.pedidoCuerpo, { minWidth: 0 }]}>
+            <Text style={estilos.pedidoTipo} numberOfLines={2}>
+              {etiquetaPedido(item)}
+            </Text>
+            <View style={estilos.pedidoFilaMonto}>
+              <View style={estilos.pedidoFilaMontoIzq}>
+                {resumen ? (
+                  <View style={{ flexShrink: 0 }}>
+                    <EstadoBadge estado={resumen.estado} />
+                  </View>
+                ) : null}
+              </View>
+              <View style={estilos.pedidoColumnaMontos}>
+                <Text
+                  style={estilos.pedidoTotal}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.75}
+                >
+                  {formatearMoneda(total)}
+                </Text>
+                {saldo > 0 ? (
+                  <Text
+                    style={estilos.pedidoSaldo}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.8}
+                  >
+                    Debe {formatearMoneda(saldo)}
+                  </Text>
+                ) : null}
+              </View>
             </View>
-            {subNum ? (
-              <Text style={[estilos.pedidoFecha, { fontWeight: FUENTE.pesoSemibold }]} numberOfLines={1}>
-                {subNum}
+            {metaLine ? (
+              <Text style={estilos.pedidoMeta} numberOfLines={1}>
+                {metaLine}
               </Text>
             ) : null}
-            <Text style={estilos.pedidoFecha}>{formatearFecha(item.fecha)}</Text>
           </View>
-          <View style={estilos.pedidoDer}>
-            <Text style={estilos.pedidoTotal}>{formatearMoneda(total)}</Text>
-            {saldo > 0 && (
-              <Text style={estilos.pedidoSaldo}>Debe {formatearMoneda(saldo)}</Text>
-            )}
+          <View style={estilos.pedidoChevronWrap}>
+            <Ionicons name="chevron-forward" size={18} color={COLORES.textoDeshabilitado} />
           </View>
-          <Ionicons name="chevron-forward" size={16} color={COLORES.textoDeshabilitado} style={{ marginLeft: 4 }} />
         </TouchableOpacity>
       );
     },
-    [navigation, persona]
+    [navigation, persona, resumenCompacto]
   );
 
   const renderPedidoComoProveedor = useCallback(
     ({ item }: { item: PedidoComoProveedor }) => {
-      const esSoloProveedorVenta =
-        item.tipo === 'venta' && (item.personaId == null || item.personaId === undefined);
-      let totalMostrar: number;
-      let saldo: number;
-      if (esSoloProveedorVenta && item.resumen) {
-        totalMostrar = item.resumen.totalVenta;
-        saldo = item.resumen.saldoPendiente;
-      } else {
-        const totalCompra = (item.items ?? []).reduce((s, i) => s + i.cantidad * i.precioCompra, 0);
-        const totalPagado = (item.pagosProveedor ?? [])
-          .filter((p) => p.tipo !== 'ingreso_cliente_a_proveedor')
-          .reduce((s, p) => s + p.monto, 0);
-        saldo = Math.max(0, totalCompra - totalPagado);
-        totalMostrar = totalCompra;
-      }
-      const estaPagado = saldo === 0;
+      const linea = lineaSaldoPedidoComoProveedor(item);
+      const totalMostrar = linea.totalMostrar;
+      const saldo = linea.saldo;
+      const estaPagado = linea.estaPagado;
       const subNum = subtituloNumeroPedido(item);
       return (
         <TouchableOpacity
-          style={[estilos.itemPedido, estilosLocales.itemProveedor]}
+          style={[estilos.itemPedido, estilosLocales.itemProveedor, resumenCompacto && estilosLocales.itemPedidoWrap]}
           onPress={() => navigation.navigate('DetallePedido', { pedidoId: item.id })}
           activeOpacity={0.85}
         >
           <View style={[estilos.tipoIconBox, { backgroundColor: COLORES.proveedorClaro }]}>
             <Ionicons name="business-outline" size={20} color={COLORES.proveedor} />
           </View>
-          <View style={estilos.pedidoInfo}>
+          <View style={[estilos.pedidoCuerpo, { minWidth: 0 }]}>
             <Text style={[estilos.pedidoTipo, { color: COLORES.proveedor }]} numberOfLines={2}>
               {etiquetaPedido(item)}
             </Text>
-            <Text style={estilos.pedidoFecha}>
+            <View style={estilos.pedidoFilaMonto}>
+              <View style={estilos.pedidoFilaMontoIzq}>
+                {!estaPagado ? <View style={estilosLocales.puntoPendienteLista} /> : null}
+              </View>
+              <View style={estilos.pedidoColumnaMontos}>
+                <Text style={[estilos.pedidoTotal, { color: COLORES.proveedor }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                  {formatearMoneda(totalMostrar)}
+                </Text>
+                {saldo > 0.005 ? (
+                  linea.variante === 'intermediacion' ? (
+                    <View style={estilosLocales.pedidoSaldoInterFila}>
+                      <Text style={estilos.pedidoSaldo}>Por cobrar</Text>
+                      <Text style={estilosLocales.pedidoSaldoMicroAyuda}>{AYUDA_POR_COBRAR_AL_CLIENTE}</Text>
+                      <Text style={estilos.pedidoSaldo}>{formatearMoneda(saldo)}</Text>
+                    </View>
+                  ) : (
+                    <Text style={estilos.pedidoSaldo} numberOfLines={2}>
+                      {linea.variante === 'legado_sin_cliente'
+                        ? 'Pendiente'
+                        : linea.variante === 'costo_venta_cliente'
+                          ? 'Le debés'
+                          : 'Pendiente'}{' '}
+                      {formatearMoneda(saldo)}
+                    </Text>
+                  )
+                ) : (
+                  <Text style={[estilos.pedidoSaldo, { color: COLORES.exito }]}>Al día</Text>
+                )}
+              </View>
+            </View>
+            <Text style={estilos.pedidoMeta} numberOfLines={2}>
               Cliente: {item.persona?.nombre?.trim() ? item.persona.nombre : 'Sin cliente'}
+              {subNum ? ` · ${subNum}` : ''}
+              {` · ${formatearFecha(item.fecha)}`}
             </Text>
-            {subNum ? (
-              <Text style={[estilos.pedidoFecha, { fontWeight: FUENTE.pesoSemibold }]} numberOfLines={1}>
-                {subNum}
-              </Text>
-            ) : null}
-            <Text style={estilos.pedidoFecha}>{formatearFecha(item.fecha)}</Text>
           </View>
-          <View style={estilos.pedidoDer}>
-            <Text style={[estilos.pedidoTotal, { color: COLORES.proveedor }]}>{formatearMoneda(totalMostrar)}</Text>
-            {saldo > 0 ? (
-              <Text style={estilos.pedidoSaldo}>Pendiente {formatearMoneda(saldo)}</Text>
-            ) : (
-              <Text style={[estilos.pedidoSaldo, { color: COLORES.exito }]}>Saldado</Text>
-            )}
+          <View style={estilos.pedidoChevronWrap}>
+            <Ionicons name="chevron-forward" size={18} color={COLORES.textoDeshabilitado} />
           </View>
-          {!estaPagado && <View style={estilosLocales.puntoPendiente} />}
-          <Ionicons name="chevron-forward" size={16} color={COLORES.textoDeshabilitado} style={{ marginLeft: 4 }} />
         </TouchableOpacity>
       );
     },
-    [navigation]
+    [navigation, resumenCompacto]
   );
 
   if (cargando && !persona) return <CargandoSpinner />;
@@ -261,8 +292,74 @@ const DetallePersona: React.FC<Props> = ({ navigation, route }) => {
     const total = esCliente ? (p.resumen?.totalVenta ?? 0) : (p.resumen?.totalCompra ?? 0);
     return acc + Math.max(0, total - (p.resumen?.totalPagado ?? 0));
   }, 0);
-  const saldoCostoConProveedor = persona?.saldoCostoPendienteConProveedor ?? 0;
-  const saldoVentasPorCobrarConProveedor = persona?.saldoVentaPorCobrarComoProveedor ?? 0;
+  const saldoCostoConProveedor = persona.saldoCostoPendienteConProveedor ?? 0;
+  const saldoVentasPorCobrarConProveedor = persona.saldoVentaPorCobrarComoProveedor ?? 0;
+  const saldoPorCobrarClienteAProveedor = persona.saldoPorCobrarClienteAProveedor ?? 0;
+
+  const tieneLegadoProveedor = pedidosComoProveedor.some(
+    (p) =>
+      p.tipo === 'venta' &&
+      (p.personaId == null || p.personaId === undefined) &&
+      p.esIntermediacion !== true,
+  );
+  const tieneInterProveedor = pedidosComoProveedor.some((p) => p.esIntermediacion === true);
+  const tieneCostoClienteProveedor = pedidosComoProveedor.some(
+    (p) =>
+      p.tipo === 'venta' &&
+      p.personaId != null &&
+      p.personaId !== undefined &&
+      p.esIntermediacion !== true,
+  );
+
+  type FilaResumen = { key: string; label: string; valorNum: number; color: string; subtitulo?: string };
+  const filasResumenFinanzas: FilaResumen[] = [];
+  if (pedidosPersona.length > 0) {
+    filasResumenFinanzas.push({
+      key: 'propio',
+      label: esCliente ? 'Por cobrar' : 'Por pagar',
+      valorNum: totalSaldo,
+      color: totalSaldo > 0.005 ? COLORES.peligro : COLORES.exito,
+    });
+  }
+  if (pedidosComoProveedor.length > 0) {
+    if (tieneLegadoProveedor || saldoVentasPorCobrarConProveedor > 0.005) {
+      filasResumenFinanzas.push({
+        key: 'proveedor_legado',
+        label: 'Pendiente sin cliente',
+        valorNum: saldoVentasPorCobrarConProveedor,
+        color: saldoVentasPorCobrarConProveedor > 0.005 ? COLORES.primario : COLORES.exito,
+      });
+    }
+    if (tieneInterProveedor || saldoPorCobrarClienteAProveedor > 0.005) {
+      filasResumenFinanzas.push({
+        key: 'proveedor_cliente_a_prov',
+        label: 'Por cobrar',
+        subtitulo: AYUDA_POR_COBRAR_AL_CLIENTE,
+        valorNum: saldoPorCobrarClienteAProveedor,
+        color: saldoPorCobrarClienteAProveedor > 0.005 ? COLORES.peligro : COLORES.textoSecundario,
+      });
+    }
+    if (tieneCostoClienteProveedor || saldoCostoConProveedor > 0.005) {
+      filasResumenFinanzas.push({
+        key: 'proveedor_costo',
+        label: 'Le debés al proveedor',
+        valorNum: saldoCostoConProveedor,
+        color: saldoCostoConProveedor > 0.005 ? COLORES.advertencia : COLORES.exito,
+      });
+    }
+  }
+  if (esCliente && pendienteAsesoriaMonto > 0.005) {
+    filasResumenFinanzas.push({
+      key: 'asesoria',
+      label: 'Asesoría por cobrar',
+      valorNum: pendienteAsesoriaMonto,
+      color: COLORES.pagado,
+    });
+  }
+
+  const totalPedidosCount = pedidosPersona.length + pedidosComoProveedor.length;
+  const hayPedidos = totalPedidosCount > 0;
+  const mostrarTarjetaResumen = filasResumenFinanzas.length > 0 || hayPedidos;
 
   return (
     <SafeAreaView style={estilosComunes.contenedor} edges={['bottom']}>
@@ -332,71 +429,53 @@ const DetallePersona: React.FC<Props> = ({ navigation, route }) => {
               </View>
             </View>
 
-            {/* Resumen financiero */}
-            {(pedidosPersona.length > 0 ||
-              pedidosComoProveedor.length > 0 ||
-              (esCliente && pendienteAsesoriaMonto > 0)) && (
+            {/* Resumen financiero (filas apiladas; ancho completo en pantallas angostas) */}
+            {mostrarTarjetaResumen && (
               <View style={estilos.resumenCard}>
-                <View style={[estilos.resumenFila, { flexWrap: 'wrap', justifyContent: 'center' }]}>
-                  {pedidosPersona.length > 0 && (
-                    <View style={estilos.resumenItem}>
-                      <Text style={estilos.resumenLabel}>
-                        {esCliente ? 'Por cobrar' : 'Por pagar'}
-                      </Text>
-                      <Text style={[estilos.resumenValor, { color: totalSaldo > 0 ? COLORES.peligro : COLORES.exito }]}>
-                        {formatearMoneda(totalSaldo)}
-                      </Text>
-                    </View>
-                  )}
-                  {pedidosPersona.length > 0 && pedidosComoProveedor.length > 0 && (
-                    <View style={estilos.resumenDivisor} />
-                  )}
-                  {pedidosComoProveedor.length > 0 && (
-                    <>
-                      <View style={estilos.resumenItem}>
-                        <Text style={estilos.resumenLabel}>Por cobrar (venta sin cliente)</Text>
+                {filasResumenFinanzas.map((fila, idx) => (
+                  <View
+                    key={fila.key}
+                    style={[
+                      estilos.resumenRow,
+                      idx > 0 && estilos.resumenRowBorder,
+                      resumenCompacto && estilos.resumenRowCompact,
+                    ]}
+                  >
+                    <View style={estilos.resumenLabelColumna}>
+                      {fila.subtitulo ? (
+                        <View style={estilosLocales.resumenEtiquetaFila}>
+                          <Text
+                            style={[estilos.resumenLabel, resumenCompacto && estilos.resumenLabelCompact]}
+                            numberOfLines={2}
+                          >
+                            {fila.label}
+                          </Text>
+                          <Text style={estilosLocales.resumenSubtituloInline} numberOfLines={1}>
+                            {fila.subtitulo}
+                          </Text>
+                        </View>
+                      ) : (
                         <Text
-                          style={[
-                            estilos.resumenValor,
-                            { color: saldoVentasPorCobrarConProveedor > 0 ? COLORES.primario : COLORES.exito },
-                          ]}
+                          style={[estilos.resumenLabel, resumenCompacto && estilos.resumenLabelCompact]}
+                          numberOfLines={4}
                         >
-                          {formatearMoneda(saldoVentasPorCobrarConProveedor)}
+                          {fila.label}
                         </Text>
-                      </View>
-                      <View style={estilos.resumenDivisor} />
-                      <View style={estilos.resumenItem}>
-                        <Text style={estilos.resumenLabel}>Por pagar (costo)</Text>
-                        <Text
-                          style={[
-                            estilos.resumenValor,
-                            { color: saldoCostoConProveedor > 0 ? COLORES.advertencia : COLORES.exito },
-                          ]}
-                        >
-                          {formatearMoneda(saldoCostoConProveedor)}
-                        </Text>
-                      </View>
-                    </>
-                  )}
-                  {esCliente && pendienteAsesoriaMonto > 0 && (
-                    <>
-                      {(pedidosPersona.length > 0 || pedidosComoProveedor.length > 0) && (
-                        <View style={estilos.resumenDivisor} />
                       )}
-                      <View style={estilos.resumenItem}>
-                        <Text style={estilos.resumenLabel}>Asesoría por cobrar</Text>
-                        <Text style={[estilos.resumenValor, { color: COLORES.pagado }]}>
-                          {formatearMoneda(pendienteAsesoriaMonto)}
-                        </Text>
-                      </View>
-                    </>
-                  )}
-                  <View style={estilos.resumenDivisor} />
-                  <View style={estilos.resumenItem}>
-                    <Text style={estilos.resumenLabel}>Pedidos</Text>
-                    <Text style={estilos.resumenValor}>{pedidosPersona.length + pedidosComoProveedor.length}</Text>
+                    </View>
+                    <Text style={[estilos.resumenValor, { color: fila.color }]} numberOfLines={1}>
+                      {formatearMoneda(fila.valorNum)}
+                    </Text>
                   </View>
-                </View>
+                ))}
+                {hayPedidos && (
+                  <View style={[estilos.resumenRow, filasResumenFinanzas.length > 0 && estilos.resumenRowBorder]}>
+                    <View style={estilos.resumenLabelColumna}>
+                      <Text style={[estilos.resumenLabel, resumenCompacto && estilos.resumenLabelCompact]}>Pedidos</Text>
+                    </View>
+                    <Text style={estilos.resumenValor}>{totalPedidosCount}</Text>
+                  </View>
+                )}
               </View>
             )}
 
@@ -450,23 +529,40 @@ const DetallePersona: React.FC<Props> = ({ navigation, route }) => {
         ListFooterComponent={
           pedidosComoProveedor.length > 0 ? (
             <View style={{ paddingBottom: 100 }}>
-              <View style={[estilosLocales.seccionProveedorHeader, { flexWrap: 'wrap', gap: ESPACIADO.xs }]}>
-                <Ionicons name="business-outline" size={16} color={COLORES.proveedor} />
-                <Text style={[estilosLocales.seccionProveedorTitulo, { flex: 1, minWidth: 120 }]}>
-                  Pedidos como proveedor · {pedidosComoProveedor.length}
-                </Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: ESPACIADO.xs, justifyContent: 'flex-end' }}>
-                  {saldoVentasPorCobrarConProveedor > 0 && (
+              <View
+                style={[
+                  estilosLocales.seccionProveedorHeader,
+                  resumenCompacto && estilosLocales.seccionProveedorHeaderCol,
+                ]}
+              >
+                <View style={[estilosLocales.seccionProveedorTituloRow, resumenCompacto && { flex: 0, width: '100%' }]}>
+                  <Ionicons name="business-outline" size={16} color={COLORES.proveedor} />
+                  <Text style={[estilosLocales.seccionProveedorTitulo, { flex: 1, minWidth: 0 }]} numberOfLines={3}>
+                    Pedidos como proveedor · {pedidosComoProveedor.length}
+                  </Text>
+                </View>
+                <View style={[estilosLocales.saldoBadgesWrap, resumenCompacto && estilosLocales.saldoBadgesWrapCol]}>
+                  {saldoVentasPorCobrarConProveedor > 0.005 && (
                     <View style={[estilosLocales.saldoBadge, { backgroundColor: COLORES.primarioClaro }]}>
-                      <Text style={[estilosLocales.saldoBadgeTexto, { color: COLORES.primario }]}>
-                        Por cobrar {formatearMoneda(saldoVentasPorCobrarConProveedor)}
+                      <Text style={[estilosLocales.saldoBadgeTexto, { color: COLORES.primario }]} numberOfLines={2}>
+                        Sin cliente · {formatearMoneda(saldoVentasPorCobrarConProveedor)}
                       </Text>
                     </View>
                   )}
-                  {saldoCostoConProveedor > 0 && (
+                  {saldoPorCobrarClienteAProveedor > 0.005 && (
+                    <View style={[estilosLocales.saldoBadge, { backgroundColor: COLORES.peligroClaro }]}>
+                      <Text style={[estilosLocales.saldoBadgeTexto, { color: COLORES.peligro }]} numberOfLines={2}>
+                        Por cobrar{' '}
+                        <Text style={estilosLocales.saldoBadgeMicro}>{AYUDA_POR_COBRAR_AL_CLIENTE}</Text>
+                        {' · '}
+                        {formatearMoneda(saldoPorCobrarClienteAProveedor)}
+                      </Text>
+                    </View>
+                  )}
+                  {saldoCostoConProveedor > 0.005 && (
                     <View style={[estilosLocales.saldoBadge, { backgroundColor: COLORES.advertenciaClaro }]}>
-                      <Text style={[estilosLocales.saldoBadgeTexto, { color: COLORES.advertencia }]}>
-                        Costo por pagar {formatearMoneda(saldoCostoConProveedor)}
+                      <Text style={[estilosLocales.saldoBadgeTexto, { color: COLORES.advertencia }]} numberOfLines={2}>
+                        Le debés al proveedor · {formatearMoneda(saldoCostoConProveedor)}
                       </Text>
                     </View>
                   )}
@@ -647,10 +743,42 @@ const estilos = StyleSheet.create({
     shadowRadius: 6,
     elevation: 1,
   },
+  resumenRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: ESPACIADO.md,
+    paddingVertical: ESPACIADO.sm,
+  },
+  resumenRowBorder: {
+    borderTopWidth: 1,
+    borderTopColor: COLORES.borde,
+  },
+  resumenRowCompact: {
+    alignItems: 'flex-start',
+  },
+  resumenLabel: {
+    fontSize: FUENTE.tamanoPequeno,
+    color: COLORES.textoSecundario,
+  },
+  resumenLabelColumna: {
+    flex: 1,
+    minWidth: 0,
+    marginRight: ESPACIADO.sm,
+  },
+  resumenLabelCompact: {
+    fontSize: FUENTE.tamanoXs,
+  },
+  resumenValor: {
+    fontSize: FUENTE.tamanoGrande,
+    fontWeight: FUENTE.pesoBold,
+    color: COLORES.texto,
+    flexShrink: 0,
+    textAlign: 'right',
+    maxWidth: '48%',
+  },
   resumenFila: { flexDirection: 'row', alignItems: 'center' },
   resumenItem: { flex: 1, alignItems: 'center', paddingVertical: ESPACIADO.xs },
-  resumenLabel: { fontSize: FUENTE.tamanoPequeno, color: COLORES.textoSecundario, marginBottom: 4 },
-  resumenValor: { fontSize: FUENTE.tamanoGrande, fontWeight: FUENTE.pesoBold, color: COLORES.texto },
   resumenDivisor: { width: 1, height: 36, backgroundColor: COLORES.borde },
   seccionTitulo: {
     fontSize: FUENTE.tamanoBase,
@@ -665,7 +793,8 @@ const estilos = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: COLORES.tarjeta,
     borderRadius: RADIO.xl,
-    padding: ESPACIADO.md,
+    paddingVertical: ESPACIADO.md,
+    paddingHorizontal: ESPACIADO.md,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -679,12 +808,48 @@ const estilos = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: ESPACIADO.md,
+    flexShrink: 0,
   },
-  pedidoInfo: { flex: 1, gap: 4 },
-  pedidoFila1: { flexDirection: 'row', alignItems: 'center', gap: ESPACIADO.sm },
+  pedidoCuerpo: {
+    flex: 1,
+    gap: ESPACIADO.xs,
+    minWidth: 0,
+  },
+  pedidoFilaMonto: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginTop: 2,
+    gap: ESPACIADO.sm,
+  },
+  pedidoFilaMontoIzq: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
+  pedidoColumnaMontos: {
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    flexShrink: 0,
+    gap: 2,
+  },
+  pedidoMeta: {
+    fontSize: FUENTE.tamanoXs,
+    color: COLORES.textoSecundario,
+    marginTop: 2,
+    lineHeight: 16,
+  },
   pedidoTipo: { fontSize: FUENTE.tamanoBase, fontWeight: FUENTE.pesoSemibold, color: COLORES.texto },
-  pedidoFecha: { fontSize: FUENTE.tamanoPequeno, color: COLORES.textoSecundario },
-  pedidoDer: { alignItems: 'flex-end', gap: 3 },
+  pedidoChevronWrap: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingLeft: ESPACIADO.sm,
+    flexShrink: 0,
+    alignSelf: 'center',
+    minWidth: 28,
+  },
   pedidoTotal: { fontSize: FUENTE.tamanoBase, fontWeight: FUENTE.pesoBold, color: COLORES.texto },
   pedidoSaldo: { fontSize: FUENTE.tamanoXs, color: COLORES.peligro, fontWeight: FUENTE.pesoMedio },
   vacio: { alignItems: 'center', paddingVertical: ESPACIADO.xl },
@@ -702,6 +867,31 @@ const estilos = StyleSheet.create({
 });
 
 const estilosLocales = StyleSheet.create({
+  resumenEtiquetaFila: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'baseline',
+    gap: 4,
+  },
+  resumenSubtituloInline: {
+    fontSize: 10,
+    lineHeight: 14,
+    color: COLORES.textoDeshabilitado,
+    fontWeight: FUENTE.pesoNormal,
+  },
+  pedidoSaldoInterFila: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'baseline',
+    justifyContent: 'flex-end',
+    gap: 4,
+    maxWidth: '100%',
+  },
+  pedidoSaldoMicroAyuda: {
+    fontSize: 10,
+    fontWeight: FUENTE.pesoNormal,
+    color: COLORES.textoSecundario,
+  },
   contactoBox: {
     width: '100%',
     marginTop: ESPACIADO.sm,
@@ -747,39 +937,74 @@ const estilosLocales = StyleSheet.create({
   // Sección como proveedor
   seccionProveedorHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
     gap: ESPACIADO.sm,
     marginTop: ESPACIADO.lg,
     marginBottom: ESPACIADO.sm,
     paddingHorizontal: 2,
   },
+  seccionProveedorHeaderCol: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+  },
+  seccionProveedorTituloRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: ESPACIADO.sm,
+    flexShrink: 0,
+    minWidth: 0,
+    flex: 1,
+  },
+  saldoBadgesWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: ESPACIADO.xs,
+    justifyContent: 'flex-end',
+    alignSelf: 'flex-end',
+    maxWidth: '100%',
+  },
+  saldoBadgesWrapCol: {
+    width: '100%',
+    alignSelf: 'stretch',
+    justifyContent: 'flex-start',
+  },
   seccionProveedorTitulo: {
     fontSize: FUENTE.tamanoPequeno,
     fontWeight: FUENTE.pesoBold,
     color: COLORES.proveedor,
-    flex: 1,
   },
   saldoBadge: {
     backgroundColor: COLORES.peligroClaro,
     borderRadius: RADIO.xxl,
     paddingHorizontal: ESPACIADO.sm,
-    paddingVertical: 3,
+    paddingVertical: 5,
+    maxWidth: '100%',
   },
   saldoBadgeTexto: {
     fontSize: FUENTE.tamanoXs,
     fontWeight: FUENTE.pesoBold,
     color: COLORES.peligro,
   },
+  saldoBadgeMicro: {
+    fontSize: FUENTE.tamanoXs,
+    fontWeight: FUENTE.pesoSemibold,
+    color: COLORES.textoSecundario,
+  },
   itemProveedor: {
     borderLeftWidth: 3,
     borderLeftColor: COLORES.proveedorClaro,
   },
-  puntoPendiente: {
+  itemPedidoWrap: {
+    flexWrap: 'wrap',
+    alignItems: 'flex-start',
+  },
+  puntoPendienteLista: {
     width: 8,
     height: 8,
     borderRadius: 4,
     backgroundColor: COLORES.peligro,
-    marginLeft: 4,
+    marginTop: 4,
   },
   // Modal
   modalOverlay: {

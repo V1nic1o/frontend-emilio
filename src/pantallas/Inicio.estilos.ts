@@ -104,7 +104,11 @@ export const estilos = StyleSheet.create({
   gananciaDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.2)', marginBottom: ESPACIADO.md },
   gananciaDesglose: { flexDirection: 'row', alignItems: 'center' },
   gananciaItem: { flex: 1, minWidth: 0, alignItems: 'center', gap: 3 },
-  gananciaItemLabel: { fontSize: FUENTE.tamanoXs, color: 'rgba(255,255,255,0.75)' },
+  gananciaItemLabel: {
+    fontSize: FUENTE.tamanoXs,
+    color: 'rgba(255,255,255,0.75)',
+    textAlign: 'center',
+  },
   gananciaItemValor: { fontSize: FUENTE.tamanoPequeno, fontWeight: FUENTE.pesoBold, color: COLORES.blanco },
   gananciaItemSep: { width: 1, height: 28, backgroundColor: 'rgba(255,255,255,0.2)' },
   gananciaFooter: {
@@ -272,6 +276,13 @@ export const estilos = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: ESPACIADO.sm,
+    minWidth: 0,
+    gap: ESPACIADO.sm,
+  },
+  /** Título a la izquierda en `seccionTituloFila`: encoge en pantallas angostas sin empujar «Ver todos». */
+  seccionTituloEnFila: {
+    flex: 1,
+    minWidth: 0,
   },
   seccionTitulo: {
     fontSize: FUENTE.tamanoBase,

@@ -63,7 +63,10 @@ function ordenarMesesCronologico(meses: MesEstadistica[]): MesEstadistica[] {
 const DetalleGananciaMesPantalla: React.FC<Props> = ({ navigation }) => {
   const tabNavigation = useNavigation<TabNav>();
   const { width: winW } = useWindowDimensions();
-  const chartWidth = Math.max(260, winW - ESPACIADO.md * 2);
+  const chartWidth = useMemo(() => {
+    const disponible = Math.max(0, winW - ESPACIADO.md * 2);
+    return Math.min(disponible, 400);
+  }, [winW]);
   const { walletSeleccionado, finanzasEpoch } = useWallet();
   const { estadisticas, cargando, error, cargar } = useEstadisticas();
   const [modalInfo, setModalInfo] = useState(false);

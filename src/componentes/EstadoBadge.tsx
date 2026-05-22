@@ -57,6 +57,7 @@ const estilos = StyleSheet.create({
     paddingVertical: ESPACIADO.xs,
     paddingHorizontal: ESPACIADO.sm,
     alignSelf: 'flex-start',
+    flexShrink: 0,
   },
   grande: { paddingVertical: 6, paddingHorizontal: ESPACIADO.md },
   texto: { fontSize: FUENTE.tamanoXs, fontWeight: FUENTE.pesoBold },

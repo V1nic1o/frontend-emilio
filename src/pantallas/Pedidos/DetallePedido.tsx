@@ -732,7 +732,7 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
 
         {!heroIntegraMetaProveedor && (
           <View style={estilosLocales.metaCard}>
-            <View style={{ flex: 1, paddingRight: ESPACIADO.sm }}>
+            <View style={{ flex: 1, minWidth: 0, paddingRight: ESPACIADO.sm }}>
               <>
                 <Text style={estilosLocales.metaLabel}>Nombre o referencia</Text>
                 <Text style={estilosLocales.metaValor} numberOfLines={2}>
@@ -753,7 +753,7 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
         {/* Cliente en venta a proveedor */}
         {mostrarTarjetaProveedorVentaSolo && (
           <View style={estilosLocales.metaCard}>
-            <View style={{ flex: 1, paddingRight: ESPACIADO.sm }}>
+            <View style={{ flex: 1, minWidth: 0, paddingRight: ESPACIADO.sm }}>
               <Text style={estilosLocales.metaLabel}>Cliente</Text>
               {pedido.persona ? (
                 <>
@@ -781,8 +781,10 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
         {/* Ítems */}
         <View style={estilos.card}>
           <View style={estilos.cardHeader}>
-            <Text style={estilos.cardTitulo}>Ítems</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: ESPACIADO.sm }}>
+            <Text style={estilos.cardTitulo} numberOfLines={2}>
+              Ítems
+            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: ESPACIADO.sm, flexShrink: 0 }}>
               <View style={estilos.cardCount}>
                 <Text style={estilos.cardCountTexto}>{pedido.items?.length ?? 0}</Text>
               </View>
@@ -813,7 +815,9 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
                     <Ionicons name={item.tipo === 'bien' ? 'cube-outline' : 'construct-outline'} size={14} color={item.tipo === 'bien' ? COLORES.primario : COLORES.morado} />
                   </View>
                   <View style={estilos.itemInfo}>
-                    <Text style={estilos.itemNombre}>{item.nombre}</Text>
+                    <Text style={estilos.itemNombre} numberOfLines={2}>
+                      {item.nombre}
+                    </Text>
                     <Text style={estilos.itemMeta}>{item.cantidad} × {formatearMoneda(precio)}</Text>
                   </View>
                   <Text style={estilos.itemSubtotal}>{formatearMoneda(subtotal)}</Text>
@@ -857,7 +861,9 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
           {mostrarTarjetaProveedorVentaSolo ? (
             <View style={estilos.card}>
               <View style={estilos.cardHeader}>
-                <Text style={estilos.cardTitulo}>Pagos registrados</Text>
+                <Text style={estilos.cardTitulo} numberOfLines={2}>
+                  Pagos registrados
+                </Text>
                 <View style={estilos.cardCount}>
                   <Text style={estilos.cardCountTexto}>{pedido.pagos?.length ?? 0}</Text>
                 </View>
@@ -885,7 +891,9 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
                         <Ionicons name="checkmark-circle" size={16} color={COLORES.exito} />
                       </View>
                       <Text style={estilos.pagoFecha}>{formatearFecha(pago.fecha)}</Text>
-                      <Text style={[estilos.pagoMonto, { flex: 1 }]}>{formatearMoneda(pago.monto)}</Text>
+                      <Text style={estilos.pagoMonto} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>
+                        {formatearMoneda(pago.monto)}
+                      </Text>
                       <TouchableOpacity onPress={() => handleEliminarPago(pago.id, pago.monto)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                         <Ionicons name="trash-outline" size={15} color={COLORES.peligro} />
                       </TouchableOpacity>
@@ -897,7 +905,9 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
           ) : (
             <View style={estilos.card}>
               <View style={estilos.cardHeader}>
-                <Text style={estilos.cardTitulo}>Pagos registrados</Text>
+                <Text style={estilos.cardTitulo} numberOfLines={2}>
+                  Pagos registrados
+                </Text>
                 <View style={estilos.cardCount}>
                   <Text style={estilos.cardCountTexto}>{pedido.pagos?.length ?? 0}</Text>
                 </View>
@@ -916,7 +926,9 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
                         <Ionicons name="checkmark-circle" size={16} color={COLORES.exito} />
                       </View>
                       <Text style={estilos.pagoFecha}>{formatearFecha(pago.fecha)}</Text>
-                      <Text style={[estilos.pagoMonto, { flex: 1 }]}>{formatearMoneda(pago.monto)}</Text>
+                      <Text style={estilos.pagoMonto} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>
+                        {formatearMoneda(pago.monto)}
+                      </Text>
                       <TouchableOpacity onPress={() => handleEliminarPago(pago.id, pago.monto)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                         <Ionicons name="trash-outline" size={15} color={COLORES.peligro} />
                       </TouchableOpacity>
@@ -930,16 +942,26 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
           {mostrarSeccionProveedorDetalle && (
             <View style={[estilos.card, estilosLocales.cardProveedor]}>
               <View style={estilos.cardHeader}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: ESPACIADO.sm }}>
+                <View
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: ESPACIADO.sm,
+                  }}
+                >
                   <Ionicons name="business-outline" size={16} color={COLORES.proveedor} />
-                  <Text style={[estilos.cardTitulo, { color: COLORES.proveedor }]}>
+                  <Text style={[estilos.cardTitulo, { color: COLORES.proveedor }]} numberOfLines={2}>
                     {esVentaProveedorConCliente ? (perfilEmpresa?.nombreEmpresa || 'Mi Empresa') : 'Proveedor'}
                   </Text>
                 </View>
-                <EstadoBadge 
+                <View style={{ flexShrink: 0 }}>
+                  <EstadoBadge 
                   estado={estadoBadgeProveedorEnTarjeta} 
                   varianteCobro={mostrarTarjetaProveedorVentaSolo} 
                 />
+              </View>
               </View>
 
               <View style={estilosLocales.proveedorNombreBox}>
@@ -950,13 +972,13 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
                       : (pedido.proveedor?.nombre ?? '?').charAt(0).toUpperCase()}
                   </Text>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={estilosLocales.proveedorNombre}>
-                    {esVentaProveedorConCliente 
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={estilosLocales.proveedorNombre} numberOfLines={2}>
+                    {esVentaProveedorConCliente
                       ? (perfilEmpresa?.nombreEmpresa || 'Mi Empresa')
                       : (pedido.proveedor?.nombre ?? '—')}
                   </Text>
-                  <Text style={estilosLocales.proveedorSub}>
+                  <Text style={estilosLocales.proveedorSub} numberOfLines={3}>
                     {mostrarTarjetaProveedorVentaSolo
                       ? tarjetaProvSaldoPendiente <= 0.005 && tarjetaProvTotalReferencia > 0.005
                         ? 'Cliente→proveedor: monto completo'
@@ -989,29 +1011,41 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
 
               <View style={estilosLocales.totalesProveedor}>
                 <View style={estilosLocales.totalProveedorItem}>
-                  <Text style={estilosLocales.totalProveedorLabel}>
+                  <Text style={estilosLocales.totalProveedorLabel} numberOfLines={2}>
                     {mostrarTarjetaProveedorVentaSolo 
                       ? 'Total venta' 
                       : esVentaProveedorConCliente 
                         ? 'Margen empresa' 
                         : 'Costo total'}
                   </Text>
-                  <Text style={estilosLocales.totalProveedorValor}>{formatearMoneda(tarjetaProvTotalReferencia)}</Text>
+                  <Text
+                    style={estilosLocales.totalProveedorValor}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.65}
+                  >
+                    {formatearMoneda(tarjetaProvTotalReferencia)}
+                  </Text>
                 </View>
                 <View style={estilosLocales.totalProveedorItem}>
-                  <Text style={estilosLocales.totalProveedorLabel}>
+                  <Text style={estilosLocales.totalProveedorLabel} numberOfLines={2}>
                     {mostrarTarjetaProveedorVentaSolo 
                       ? 'Cliente→proveedor' 
                       : esVentaProveedorConCliente 
                         ? 'Recibido' 
                         : 'Pagado'}
                   </Text>
-                  <Text style={[estilosLocales.totalProveedorValor, { color: COLORES.exito }]}>
+                  <Text
+                    style={[estilosLocales.totalProveedorValor, { color: COLORES.exito }]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.65}
+                  >
                     {formatearMoneda(tarjetaProvMontoPagado)}
                   </Text>
                 </View>
                 <View style={estilosLocales.totalProveedorItem}>
-                  <Text style={estilosLocales.totalProveedorLabel}>Pendiente</Text>
+                  <Text style={estilosLocales.totalProveedorLabel} numberOfLines={2}>Pendiente</Text>
                   <Text
                     style={[
                       estilosLocales.totalProveedorValor,
@@ -1030,6 +1064,9 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
                                 : COLORES.proveedor,
                       },
                     ]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.65}
                   >
                     {formatearMoneda(tarjetaProvSaldoPendiente)}
                   </Text>
@@ -1097,6 +1134,9 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
                               marginRight: 4,
                             },
                           ]}
+                          numberOfLines={1}
+                          adjustsFontSizeToFit
+                          minimumFontScale={0.65}
                         >
                           {formatearMoneda(pago.monto)}
                         </Text>
@@ -1121,7 +1161,7 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
                       activeOpacity={0.85}
                     >
                       <Ionicons name="person-add-outline" size={17} color={COLORES.blanco} />
-                      <Text style={estilosLocales.botonPagarProveedorTexto}>
+                      <Text style={estilosLocales.botonPagarProveedorTexto} numberOfLines={2}>
                         Cliente pagó al proveedor · {formatearMoneda(maxIngresoClienteProveedor)}
                       </Text>
                     </TouchableOpacity>
@@ -1134,7 +1174,7 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
                       activeOpacity={0.85}
                     >
                       <Ionicons name="arrow-up-circle-outline" size={17} color={COLORES.blanco} />
-                      <Text style={estilosLocales.botonPagarProveedorTexto}>
+                      <Text style={estilosLocales.botonPagarProveedorTexto} numberOfLines={2}>
                         Pagar · {formatearMoneda(saldoProveedor)}
                       </Text>
                     </TouchableOpacity>
@@ -1149,7 +1189,7 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
                       activeOpacity={0.85}
                     >
                       <Ionicons name="arrow-down-circle-outline" size={17} color={COLORES.blanco} />
-                      <Text style={estilosLocales.botonPagarProveedorTexto}>
+                      <Text style={estilosLocales.botonPagarProveedorTexto} numberOfLines={2}>
                         Registrar pago  · {formatearMoneda(saldoMargenProveedor)}
                       </Text>
                     </TouchableOpacity>
@@ -1163,7 +1203,7 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
                     activeOpacity={0.85}
                   >
                     <Ionicons name="arrow-up-circle-outline" size={17} color={COLORES.blanco} />
-                    <Text style={estilosLocales.botonPagarProveedorTexto}>
+                    <Text style={estilosLocales.botonPagarProveedorTexto} numberOfLines={2}>
                       Pagar · {formatearMoneda(saldoProveedor)}
                     </Text>
                   </TouchableOpacity>
@@ -1177,9 +1217,13 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
         {esVenta && (mostrarLadoProveedorCosto || mostrarTarjetaProveedorVentaSolo) && (
           <View style={estilosLocales.cardGanancia}>
             <View style={estilos.cardHeader}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: ESPACIADO.sm }}>
+              <View
+                style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: ESPACIADO.sm }}
+              >
                 <Ionicons name="trending-up-outline" size={16} color={COLORES.exito} />
-                <Text style={[estilos.cardTitulo, { color: COLORES.exito }]}>Mis utilidades</Text>
+                <Text style={[estilos.cardTitulo, { color: COLORES.exito }]} numberOfLines={2}>
+                  Mis utilidades
+                </Text>
               </View>
             </View>
             {mostrarTarjetaProveedorVentaSolo ? (
@@ -1557,8 +1601,12 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
       <Modal visible={modalItem} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={{ flex: 1, backgroundColor: COLORES.fondo }}>
           <View style={estilosLocales.modalItemHeader}>
-            <Text style={estilos.modalTitulo}>{itemEditable.itemId ? 'Editar ítem' : 'Nuevo ítem'}</Text>
-            <View style={{ flexDirection: 'row', gap: ESPACIADO.sm }}>
+            <View style={{ flex: 1, minWidth: 0, marginRight: ESPACIADO.sm }}>
+              <Text style={estilos.modalTitulo} numberOfLines={2}>
+                {itemEditable.itemId ? 'Editar ítem' : 'Nuevo ítem'}
+              </Text>
+            </View>
+            <View style={{ flexDirection: 'row', gap: ESPACIADO.sm, flexShrink: 0 }}>
               {productos.length > 0 && !itemEditable.itemId && (
                 <TouchableOpacity style={estilosLocales.btnCatalogo} onPress={() => setModalCatalogo(true)} activeOpacity={0.8}>
                   <Ionicons name="grid-outline" size={14} color={COLORES.primario} />
@@ -1578,9 +1626,23 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
               showsVerticalScrollIndicator={false}
             >
               <CampoTexto etiqueta="Nombre" placeholder="Nombre del ítem" value={itemEditable.nombre} onChangeText={(v) => setItemEditable((p) => ({ ...p, nombre: v }))} autoFocus maxLength={150} />
-              <View style={{ flexDirection: 'row' }}>
-                <CampoTexto etiqueta="Cantidad" placeholder="1" value={itemEditable.cantidad} onChangeText={(v) => setItemEditable((p) => ({ ...p, cantidad: v }))} keyboardType="decimal-pad" contenedor={{ flex: 1, marginRight: ESPACIADO.sm }} />
-                <CampoTexto etiqueta="Precio costo" placeholder="0.00" value={itemEditable.precioCompra} onChangeText={(v) => setItemEditable((p) => ({ ...p, precioCompra: v }))} keyboardType="decimal-pad" contenedor={{ flex: 1, marginLeft: ESPACIADO.sm }} />
+              <View style={{ flexDirection: 'row', minWidth: 0, alignSelf: 'stretch' }}>
+                <CampoTexto
+                  etiqueta="Cantidad"
+                  placeholder="1"
+                  value={itemEditable.cantidad}
+                  onChangeText={(v) => setItemEditable((p) => ({ ...p, cantidad: v }))}
+                  keyboardType="decimal-pad"
+                  contenedor={{ flex: 1, minWidth: 0, marginRight: ESPACIADO.sm }}
+                />
+                <CampoTexto
+                  etiqueta="Precio costo"
+                  placeholder="0.00"
+                  value={itemEditable.precioCompra}
+                  onChangeText={(v) => setItemEditable((p) => ({ ...p, precioCompra: v }))}
+                  keyboardType="decimal-pad"
+                  contenedor={{ flex: 1, minWidth: 0, marginLeft: ESPACIADO.sm }}
+                />
               </View>
               <CampoTexto etiqueta="Precio venta" placeholder="0.00" value={itemEditable.precioVenta} onChangeText={(v) => setItemEditable((p) => ({ ...p, precioVenta: v }))} keyboardType="decimal-pad" />
             </ScrollView>
@@ -1595,7 +1657,11 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
       <Modal visible={modalCatalogo} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={{ flex: 1, backgroundColor: COLORES.fondo }}>
           <View style={estilosLocales.modalItemHeader}>
-            <Text style={estilos.modalTitulo}>Catálogo</Text>
+            <View style={{ flex: 1, minWidth: 0, marginRight: ESPACIADO.sm }}>
+              <Text style={estilos.modalTitulo} numberOfLines={2}>
+                Catálogo
+              </Text>
+            </View>
             <TouchableOpacity onPress={() => setModalCatalogo(false)} style={estilosLocales.cerrarBtn}>
               <Ionicons name="close" size={20} color={COLORES.textoSecundario} />
             </TouchableOpacity>
@@ -1606,12 +1672,14 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
             contentContainerStyle={{ padding: ESPACIADO.md }}
             ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: COLORES.borde }} />}
             renderItem={({ item }) => (
-              <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: ESPACIADO.md, paddingVertical: ESPACIADO.md }} onPress={() => seleccionarProductoCatalogo(item)} activeOpacity={0.85}>
+              <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: ESPACIADO.md, paddingVertical: ESPACIADO.md, minWidth: 0 }} onPress={() => seleccionarProductoCatalogo(item)} activeOpacity={0.85}>
                 <View style={[estilosLocales.iconBox, { backgroundColor: item.tipo === 'bien' ? COLORES.primarioClaro : COLORES.moradoClaro }]}>
                   <Ionicons name={item.tipo === 'bien' ? 'cube-outline' : 'construct-outline'} size={16} color={item.tipo === 'bien' ? COLORES.primario : COLORES.morado} />
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontWeight: FUENTE.pesoSemibold, color: COLORES.texto }}>{item.nombre}</Text>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={{ fontWeight: FUENTE.pesoSemibold, color: COLORES.texto }} numberOfLines={2}>
+                    {item.nombre}
+                  </Text>
                   <Text style={{ fontSize: FUENTE.tamanoXs, color: COLORES.textoSecundario }}>Venta: {formatearMoneda(item.precioEmpresa)}</Text>
                 </View>
                 <Ionicons name="add-circle-outline" size={20} color={COLORES.primario} />
@@ -1625,7 +1693,11 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
       <Modal visible={modalCliente} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={{ flex: 1, backgroundColor: COLORES.fondo }}>
           <View style={estilosLocales.modalItemHeader}>
-            <Text style={estilos.modalTitulo}>{pedido?.persona ? 'Cambiar cliente' : 'Agregar cliente'}</Text>
+            <View style={{ flex: 1, minWidth: 0, marginRight: ESPACIADO.sm }}>
+              <Text style={estilos.modalTitulo} numberOfLines={2}>
+                {pedido?.persona ? 'Cambiar cliente' : 'Agregar cliente'}
+              </Text>
+            </View>
             <TouchableOpacity onPress={() => setModalCliente(false)} style={estilosLocales.cerrarBtn}>
               <Ionicons name="close" size={20} color={COLORES.textoSecundario} />
             </TouchableOpacity>
@@ -1664,7 +1736,7 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
               ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: COLORES.borde }} />}
               renderItem={({ item }) => (
                 <TouchableOpacity 
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: ESPACIADO.md, paddingVertical: ESPACIADO.md }} 
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: ESPACIADO.md, paddingVertical: ESPACIADO.md, minWidth: 0 }} 
                   onPress={() => handleActualizarCliente(item)} 
                   activeOpacity={0.85}
                 >
@@ -1673,8 +1745,10 @@ const DetallePedido: React.FC<Props> = ({ navigation, route }) => {
                       {item.nombre.charAt(0).toUpperCase()}
                     </Text>
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontWeight: FUENTE.pesoSemibold, color: COLORES.texto }}>{item.nombre}</Text>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={{ fontWeight: FUENTE.pesoSemibold, color: COLORES.texto }} numberOfLines={2}>
+                      {item.nombre}
+                    </Text>
                     <Text style={{ fontSize: FUENTE.tamanoXs, color: COLORES.textoSecundario }}>Cliente</Text>
                   </View>
                   {pedido?.persona?.id === item.id && (
@@ -1719,6 +1793,7 @@ const estilosLocales = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 6,
     elevation: 1,
+    minWidth: 0,
   },
   metaLabel: {
     fontSize: FUENTE.tamanoXs,
@@ -1744,6 +1819,7 @@ const estilosLocales = StyleSheet.create({
     borderRadius: RADIO.sm,
     paddingVertical: 4,
     paddingHorizontal: ESPACIADO.sm,
+    flexShrink: 0,
   },
   btnAgregarItemTexto: { fontSize: FUENTE.tamanoXs, fontWeight: FUENTE.pesoBold, color: COLORES.primario },
   itemAcciones: { flexDirection: 'row', gap: 6, marginLeft: ESPACIADO.sm },
@@ -1763,6 +1839,8 @@ const estilosLocales = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORES.borde,
     backgroundColor: COLORES.tarjeta,
+    minWidth: 0,
+    gap: ESPACIADO.sm,
   },
   modalItemFooter: {
     padding: ESPACIADO.md,
@@ -1815,6 +1893,7 @@ const estilosLocales = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginVertical: ESPACIADO.sm,
+    minWidth: 0,
   },
   gananciaItem: { flex: 1, minWidth: 0, alignItems: 'center' },
   gananciaLabel: { fontSize: FUENTE.tamanoXs, color: COLORES.textoSecundario, marginBottom: 2, textAlign: 'center' },
@@ -1935,6 +2014,7 @@ const estilosLocales = StyleSheet.create({
     gap: ESPACIADO.md,
     paddingVertical: ESPACIADO.sm,
     marginBottom: ESPACIADO.sm,
+    minWidth: 0,
   },
   proveedorAvatar: {
     width: 40,
@@ -1976,15 +2056,19 @@ const estilosLocales = StyleSheet.create({
     padding: ESPACIADO.md,
     marginBottom: ESPACIADO.md,
     gap: ESPACIADO.sm,
+    minWidth: 0,
   },
   totalProveedorItem: {
     flex: 1,
+    minWidth: 0,
     alignItems: 'center',
   },
   totalProveedorLabel: {
     fontSize: FUENTE.tamanoXs,
     color: COLORES.textoSecundario,
     marginBottom: 2,
+    textAlign: 'center',
+    maxWidth: '100%',
   },
   totalProveedorValor: {
     fontSize: FUENTE.tamanoPequeno,
@@ -2016,11 +2100,15 @@ const estilosLocales = StyleSheet.create({
     backgroundColor: COLORES.proveedor,
     borderRadius: RADIO.xl,
     paddingVertical: 12,
+    paddingHorizontal: ESPACIADO.sm,
+    minWidth: 0,
   },
   botonPagarProveedorTexto: {
     fontSize: FUENTE.tamanoBase,
     fontWeight: FUENTE.pesoBold,
     color: COLORES.blanco,
+    flexShrink: 1,
+    textAlign: 'center',
   },
   botonCobrarProveedor: {
     flexDirection: 'row',

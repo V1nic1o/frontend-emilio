@@ -239,7 +239,7 @@ const InicioPersonal: React.FC = () => {
           <View style={estilos.accesoResumenIcono}>
             <Ionicons name="bar-chart-outline" size={22} color={PERSONAL.accentOscuro} />
           </View>
-          <View style={{ flex: 1 }}>
+          <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={estilos.accesoResumenTitulo}>Resumen por periodo</Text>
             <Text style={estilos.accesoResumenSub}>Mes, año y tendencia del workspace</Text>
           </View>
@@ -259,7 +259,12 @@ const InicioPersonal: React.FC = () => {
           {cargando && !resumen ? (
             <ActivityIndicator size="large" color={PERSONAL.textoSobreOscuro} style={{ marginVertical: ESPACIADO.md }} />
           ) : (
-            <Text style={estilos.heroMonto}>
+            <Text
+              style={estilos.heroMonto}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.45}
+            >
               {resumen ? formatearMoneda(resumen.balanceMes) : '—'}
             </Text>
           )}
@@ -321,7 +326,7 @@ const InicioPersonal: React.FC = () => {
             <View style={[estilos.pasoIcono, { backgroundColor: `${panorama.paso.color}18` }]}>
               <Ionicons name={panorama.paso.icono} size={26} color={panorama.paso.color} />
             </View>
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={estilos.pasoTit}>Te sugerimos</Text>
               <Text style={estilos.pasoNombre}>{panorama.paso.titulo}</Text>
               <Text style={estilos.pasoDet}>{panorama.paso.detalle}</Text>
@@ -373,7 +378,7 @@ const InicioPersonal: React.FC = () => {
             <View style={[estilos.toolIcono, { backgroundColor: h.fondo }]}>
               <Ionicons name={h.icono} size={22} color={h.color} />
             </View>
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={estilos.toolTit}>{h.titulo}</Text>
               <Text style={estilos.toolSub}>{h.subtitulo}</Text>
             </View>
@@ -398,6 +403,7 @@ const estilos = StyleSheet.create({
     marginBottom: ESPACIADO.md,
     borderWidth: 1,
     borderColor: PERSONAL.borde,
+    minWidth: 0,
   },
   accesoResumenIcono: {
     width: 44,
@@ -457,9 +463,10 @@ const estilos = StyleSheet.create({
   },
   barraFill: { height: '100%', borderRadius: 4 },
   barraLeyenda: { fontSize: 11, color: 'rgba(240,253,250,0.7)', marginTop: 8, lineHeight: 15 },
-  metricasFila: { flexDirection: 'row', gap: ESPACIADO.sm, marginBottom: ESPACIADO.md },
+  metricasFila: { flexDirection: 'row', gap: ESPACIADO.sm, marginBottom: ESPACIADO.md, minWidth: 0 },
   metricaCaja: {
     flex: 1,
+    minWidth: 0,
     backgroundColor: PERSONAL.tarjeta,
     borderRadius: RADIO.lg,
     padding: ESPACIADO.sm,
@@ -479,6 +486,7 @@ const estilos = StyleSheet.create({
     marginBottom: ESPACIADO.lg,
     borderWidth: 1,
     borderColor: PERSONAL.borde,
+    minWidth: 0,
   },
   pasoIcono: {
     width: 52,
@@ -519,6 +527,7 @@ const estilos = StyleSheet.create({
     marginBottom: ESPACIADO.sm,
     borderWidth: 1,
     borderColor: PERSONAL.borde,
+    minWidth: 0,
   },
   toolIcono: {
     width: 48,
