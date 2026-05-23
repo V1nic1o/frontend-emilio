@@ -15,7 +15,6 @@ interface AuthContextType {
   usuario: UsuarioAuth | null;
   cargando: boolean;
   login: (email: string, password: string) => Promise<void>;
-  registrar: (email: string, password: string, nombre: string) => Promise<void>;
   cerrarSesion: () => Promise<void>;
 }
 
@@ -23,7 +22,6 @@ const AuthContext = createContext<AuthContextType>({
   usuario: null,
   cargando: true,
   login: async () => {},
-  registrar: async () => {},
   cerrarSesion: async () => {},
 });
 
@@ -67,19 +65,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUsuario(user);
   }, []);
 
-  const registrar = useCallback(async (email: string, password: string, nombre: string) => {
-    const { token, usuario: user } = await authServicio.registrar(email, password, nombre);
-    await setTokenAlmacenado(token);
-    setUsuario(user);
-  }, []);
-
   const cerrarSesion = useCallback(async () => {
     await borrarTokenAlmacenado().catch(() => {});
     setUsuario(null);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ usuario, cargando, login, registrar, cerrarSesion }}>
+    <AuthContext.Provider value={{ usuario, cargando, login, cerrarSesion }}>
       {children}
     </AuthContext.Provider>
   );

@@ -82,7 +82,6 @@ api.interceptors.response.use(
     const ruta = error.config?.url ?? '';
     const esAuthPublico =
       ruta.includes('auth/login') ||
-      ruta.includes('auth/registrar') ||
       ruta.includes('auth/solicitar-reset') ||
       ruta.includes('auth/restablecer-contrasena');
     const status = error.response?.status;

@@ -4,7 +4,6 @@ import { NavigatorScreenParams } from '@react-navigation/native';
 
 export type AuthStackParamList = {
   Login: undefined;
-  Registro: undefined;
   SolicitarResetContrasena: undefined;
   RestablecerContrasena: { token?: string };
 };

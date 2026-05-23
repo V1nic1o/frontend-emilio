@@ -29,7 +29,6 @@ import { useAuth } from '../contexto/AuthContext';
 
 // Auth
 import Login from '../pantallas/Auth/Login';
-import Registro from '../pantallas/Auth/Registro';
 import SolicitarResetContrasena from '../pantallas/Auth/SolicitarResetContrasena';
 import RestablecerContrasena from '../pantallas/Auth/RestablecerContrasena';
 
@@ -143,7 +142,6 @@ function enlacesAutenticacion(): LinkingOptions<AuthStackParamList> {
     config: {
       screens: {
         Login: '',
-        Registro: 'registro',
         SolicitarResetContrasena: 'olvido-contrasena',
         RestablecerContrasena: 'restablecer-contrasena/:token',
       },
@@ -155,7 +153,6 @@ function AuthNavigator() {
   return (
     <AuthStack.Navigator screenOptions={{ headerShown: false }}>
       <AuthStack.Screen name="Login" component={Login} />
-      <AuthStack.Screen name="Registro" component={Registro} />
       <AuthStack.Screen name="SolicitarResetContrasena" component={SolicitarResetContrasena} />
       <AuthStack.Screen name="RestablecerContrasena" component={RestablecerContrasena} />
     </AuthStack.Navigator>

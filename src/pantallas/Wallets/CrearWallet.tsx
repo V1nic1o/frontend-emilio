@@ -35,7 +35,7 @@ const COLORES_PRESET = [
 ];
 
 const CrearWallet: React.FC<Props> = ({ navigation }) => {
-  const { recargarWallets, seleccionar } = useWallet();
+  const { recargarWallets } = useWallet();
   const [nombre, setNombre] = useState('');
   const [descripcion, setDescripcion] = useState('');
   const [colorSeleccionado, setColorSeleccionado] = useState(COLORES_PRESET[0]);
@@ -56,14 +56,15 @@ const CrearWallet: React.FC<Props> = ({ navigation }) => {
     if (!validar()) return;
     setGuardando(true);
     try {
-      const nuevo = await walletsServicio.crear({
+      await walletsServicio.crear({
         nombre: nombre.trim(),
         descripcion: descripcion.trim() || undefined,
         color: colorSeleccionado,
         tipo,
       });
       await recargarWallets();
-      seleccionar(nuevo);
+      // Volver a la lista: el usuario elige «Abrir» o puede crear otro workspace sin entrar al panel.
+      navigation.goBack();
     } catch {
       mostrarAlerta('Error', 'No se pudo crear el workspace');
     } finally {

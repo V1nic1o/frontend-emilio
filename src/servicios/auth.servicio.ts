@@ -12,11 +12,6 @@ export interface RespuestaAuth {
 }
 
 export const authServicio = {
-  registrar: async (email: string, password: string, nombre: string): Promise<RespuestaAuth> => {
-    const { data } = await api.post<RespuestaAuth>('/auth/registrar', { email, password, nombre });
-    return data;
-  },
-
   login: async (email: string, password: string): Promise<RespuestaAuth> => {
     const { data } = await api.post<RespuestaAuth>('/auth/login', { email, password });
     return data;

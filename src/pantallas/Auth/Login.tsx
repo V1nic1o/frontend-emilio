@@ -95,13 +95,6 @@ const Login: React.FC<Props> = ({ navigation }) => {
             />
           </View>
 
-          <View style={estilos.pie}>
-            <Text style={estilos.pieTexto}>¿No tenés cuenta?</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Registro')} activeOpacity={0.8}>
-              <Text style={estilos.pieEnlace}> Registrate</Text>
-            </TouchableOpacity>
-          </View>
-
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -128,9 +121,6 @@ const estilos = StyleSheet.create({
   },
   olvidar: { alignSelf: 'flex-end', marginTop: ESPACIADO.sm },
   olvidarTexto: { fontSize: FUENTE.tamanoPequeno, color: COLORES.primario, fontWeight: FUENTE.pesoSemibold },
-  pie: { flexDirection: 'row', justifyContent: 'center', marginTop: ESPACIADO.xl },
-  pieTexto: { color: COLORES.textoSecundario, fontSize: FUENTE.tamanoPequeno },
-  pieEnlace: { color: COLORES.primario, fontSize: FUENTE.tamanoPequeno, fontWeight: FUENTE.pesoBold },
 });
 
 export default Login;

@@ -40,14 +40,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setFinanzasEpoch((n) => n + 1);
   }, []);
 
-  // Recarga la lista; si no hay wallet elegido y solo hay uno, lo elige (p. ej. tras login).
+  // Recarga la lista desde la API (p. ej. al volver a «Mis Workspaces» o tras crear/eliminar).
   const recargarWallets = useCallback(async () => {
     try {
       const data = await walletsServicio.listar();
       setWallets(data);
-      if (data.length === 1) {
-        setWalletSeleccionado((prev) => prev ?? data[0]!);
-      }
     } catch {
       // sin conexión
     }
@@ -70,9 +67,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         const data = await walletsServicio.listar();
         if (cancel) return;
         setWallets(data);
-        if (data.length === 1) {
-          setWalletSeleccionado(data[0]!);
-        }
       } catch {
         if (!cancel) {
           setWallets([]);

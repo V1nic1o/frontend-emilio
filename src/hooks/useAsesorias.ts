@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { useWallet } from '../contexto/WalletContext';
 import { asesoriasServicio } from '../servicios/asesorias.servicio';
 import { AsesoriaPendienteResumen, AsesoriaPorPersonaRespuesta } from '../tipos';
+import { esWalletEmpresa } from '../utilidades/wallet';
 
 export function useAsesoriaPersona(personaId: number) {
   const { walletSeleccionado } = useWallet();
@@ -10,7 +11,12 @@ export function useAsesoriaPersona(personaId: number) {
   const [error, setError] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
-    if (!walletSeleccionado) return;
+    if (!walletSeleccionado || !esWalletEmpresa(walletSeleccionado)) {
+      setData(null);
+      setError(null);
+      setCargando(false);
+      return;
+    }
     setCargando(true);
     setError(null);
     try {
@@ -38,7 +44,11 @@ export function useAsesoriasPendientes() {
   const [cargando, setCargando] = useState(false);
 
   const cargar = useCallback(async () => {
-    if (!walletSeleccionado) return;
+    if (!walletSeleccionado || !esWalletEmpresa(walletSeleccionado)) {
+      setPendientes([]);
+      setCargando(false);
+      return;
+    }
     setCargando(true);
     try {
       try {
